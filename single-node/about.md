@@ -1,0 +1,57 @@
+## 部署后需要的调整
+
+flink-jobmanager和taskmanager节点运行如下命令，否则streampark作业运行出错
+```sh
+cp opt/flink-table-planner_2.12-1.17.2.jar lib/
+mv lib/flink-table-planner-loader-1.17.2.jar opt/
+```
+
+hive节点运行beeline
+```sql
+-- 创建数据库
+create database ods; create database dwd; create database dim; create database dws; show databases;
+-- 单节点mapreduce workaround
+set mapreduce.task.io.sort.mb=10;
+```
+
+hive节点的/opt/hive/conf需要复制到flink-jobmanager节点
+
+hive目录要改权限，让flink能写
+```sh
+docker exec -u root -it flink-taskmanager chmod -R 777 /opt/hive/data/warehouse
+```
+
+streampark节点需要安装flink_1.17.2
+
+
+## Flink slot总数 调整方法
+
+1. 增加单个 TaskManager 的 slot 数量
+
+修改 flink-taskmanager 服务的 FLINK_PROPERTIES
+
+增加 slot 时建议同步调整内存，否则每个 slot 分到的内存会变少
+
+flink-taskmanager:
+  environment:
+    - |
+      FLINK_PROPERTIES=
+      jobmanager.rpc.address: flink-jobmanager
+      taskmanager.numberOfTaskSlots: 4    # 改为需要的数量
+      taskmanager.memory.process.size: 4096m
+
+2. 增加 TaskManager 实例数量
+
+使用 docker compose up --scale 启动多个 TaskManager：
+
+docker compose up -d --scale flink-taskmanager=3
+
+这样总 slot 数 = numberOfTaskSlots × TaskManager数量
+
+---
+
+注意事项
+
+- slot 数量建议：通常设置为 CPU 核心数或略低
+- 修改后需要重启 TaskManager：docker compose restart flink-taskmanager
+- 可通过 Flink Web UI (http://localhost:8081) 查看当前可用 slot 数

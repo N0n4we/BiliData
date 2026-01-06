@@ -1,0 +1,17 @@
+# Build / IDE / LSP
+.project
+.factorypath
+target/
+.settings/
+.classpath
+.vscode/
+
+# Assistants
+.aider*
+.ra-aid*
+
+# nix
+/.direnv/
+
+# Others
+packages/
