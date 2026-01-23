@@ -1,4 +1,27 @@
 services:
+
+  streampark:
+    image: apache/streampark:v2.1.5
+    hostname: streampark
+    container_name: streampark
+    ports:
+      - "10001:10000"
+    environment:
+      TZ: Asia/Shanghai
+      DATASOURCE_DIALECT: h2
+    networks:
+      - single-node-network
+
+  dolphinscheduler:
+    image: apache/dolphinscheduler-standalone-server:latest
+    hostname: dolphinscheduler
+    container_name: dolphinscheduler
+    ports:
+      - "12345:12345"
+      - "25333:25333"
+    networks:
+      - single-node-network
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     hostname: zookeeper
