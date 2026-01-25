@@ -6,11 +6,12 @@ WITH
 yesterday_snapshot AS (
     SELECT
         rpid,
+        oid,
         like_count,
         dislike_count,
         reply_count
     FROM dim.dim_comment_df
-    WHERE dt = DATE_SUB('${bizdate}', 1)
+    WHERE dt = DATE_SUB('${bizdate}', 1) AND rpid IS NOT NULL AND oid IS NOT NULL
 ),
 
 -- ============================================================
@@ -19,11 +20,12 @@ yesterday_snapshot AS (
 today_stats AS (
     SELECT
         rpid,
+        oid,
         net_like_delta,
         net_dislike_delta,
         reply_count_delta
     FROM dwd.dwd_stats_comment_di
-    WHERE dt = '${bizdate}'
+    WHERE dt = '${bizdate}' AND rpid IS NOT NULL AND oid IS NOT NULL
 ),
 
 -- ============================================================
@@ -60,7 +62,7 @@ comment_attributes AS (
             FROM_UNIXTIME(created_at DIV 1000, 'yyyy-MM-dd') AS created_date,
             FROM_UNIXTIME(updated_at DIV 1000, 'yyyy-MM-dd') AS updated_date,
             ROW_NUMBER() OVER (
-                PARTITION BY rpid
+                PARTITION BY rpid, oid
                 ORDER BY updated_at DESC
             ) AS rn
         FROM (
@@ -90,22 +92,22 @@ comment_attributes AS (
               AND topic = 'app_comment'
         ) merged
     ) deduped
-    WHERE rn = 1
+    WHERE rn = 1 AND rpid IS NOT NULL AND oid IS NOT NULL
 ),
 
 -- ============================================================
 -- 4. 获取所有评论 ID
 -- ============================================================
 all_comments AS (
-    SELECT rpid FROM comment_attributes
+    SELECT rpid, oid FROM comment_attributes
     UNION
-    SELECT rpid FROM today_stats WHERE rpid IS NOT NULL
+    SELECT rpid, oid FROM today_stats
 )
 
 INSERT OVERWRITE TABLE dim.dim_comment_df PARTITION (dt = '${bizdate}')
 SELECT
     c.rpid,
-    a.oid,
+    c.oid,
     a.otype,
     a.mid,
     a.root,
@@ -131,7 +133,6 @@ SELECT
     END                                                              AS updated_date
 
 FROM all_comments c
-LEFT JOIN comment_attributes a ON c.rpid = a.rpid
-LEFT JOIN yesterday_snapshot y ON c.rpid = y.rpid
-LEFT JOIN today_stats s ON c.rpid = s.rpid
-WHERE c.rpid IS NOT NULL;
+LEFT JOIN comment_attributes a ON c.rpid = a.rpid AND c.oid = a.oid
+LEFT JOIN yesterday_snapshot y ON c.rpid = y.rpid AND c.oid = y.oid
+LEFT JOIN today_stats s ON c.rpid = s.rpid AND c.oid = s.oid;

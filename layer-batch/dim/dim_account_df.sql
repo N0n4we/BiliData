@@ -151,48 +151,60 @@ relation_calculated AS (
         u.mid,
 
         -- following = (昨日 ∪ 今日新增) - 今日取关
-        ARRAY_EXCEPT(
-            ARRAY_UNION(
-                COALESCE(y.yd_following_list, CAST(ARRAY() AS ARRAY<BIGINT>)),
-                COALESCE(f.today_follow, CAST(ARRAY() AS ARRAY<BIGINT>))
+        COALESCE(
+            ARRAY_EXCEPT(
+                ARRAY_UNION(
+                    COALESCE(y.yd_following_list, array_slice(array(0L),1,0)),
+                    COALESCE(f.today_follow, array_slice(array(0L),1,0))
+                ),
+                COALESCE(f.today_unfollow, array_slice(array(0L),1,0))
             ),
-            COALESCE(f.today_unfollow, CAST(ARRAY() AS ARRAY<BIGINT>))
+            array_slice(array(0L),1,0)
         ) AS following_list,
 
         -- follower = (昨日 ∪ 今日新粉) - 今日取关我的
-        ARRAY_EXCEPT(
-            ARRAY_UNION(
-                COALESCE(y.yd_follower_list, CAST(ARRAY() AS ARRAY<BIGINT>)),
-                COALESCE(p.today_be_followed, CAST(ARRAY() AS ARRAY<BIGINT>))
+        COALESCE(
+            ARRAY_EXCEPT(
+                ARRAY_UNION(
+                    COALESCE(y.yd_follower_list, array_slice(array(0L),1,0)),
+                    COALESCE(p.today_be_followed, array_slice(array(0L),1,0))
+                ),
+                COALESCE(p.today_be_unfollowed, array_slice(array(0L),1,0))
             ),
-            COALESCE(p.today_be_unfollowed, CAST(ARRAY() AS ARRAY<BIGINT>))
+            array_slice(array(0L),1,0)
         ) AS follower_list,
 
         -- blocking = (昨日 ∪ 今日拉黑) - 今日取消拉黑
-        ARRAY_EXCEPT(
-            ARRAY_UNION(
-                COALESCE(y.yd_blocking_list, CAST(ARRAY() AS ARRAY<BIGINT>)),
-                COALESCE(f.today_block, CAST(ARRAY() AS ARRAY<BIGINT>))
+        COALESCE(
+            ARRAY_EXCEPT(
+                ARRAY_UNION(
+                    COALESCE(y.yd_blocking_list, array_slice(array(0L),1,0)),
+                    COALESCE(f.today_block, array_slice(array(0L),1,0))
+                ),
+                COALESCE(f.today_unblock, array_slice(array(0L),1,0))
             ),
-            COALESCE(f.today_unblock, CAST(ARRAY() AS ARRAY<BIGINT>))
+            array_slice(array(0L),1,0)
         ) AS blocking_list,
 
         -- blocked_by = (昨日 ∪ 今日被拉黑) - 今日被取消拉黑
-        ARRAY_EXCEPT(
-            ARRAY_UNION(
-                COALESCE(y.yd_blocked_by_list, CAST(ARRAY() AS ARRAY<BIGINT>)),
-                COALESCE(p.today_be_blocked, CAST(ARRAY() AS ARRAY<BIGINT>))
+        COALESCE(
+            ARRAY_EXCEPT(
+                ARRAY_UNION(
+                    COALESCE(y.yd_blocked_by_list, array_slice(array(0L),1,0)),
+                    COALESCE(p.today_be_blocked, array_slice(array(0L),1,0))
+                ),
+                COALESCE(p.today_be_unblocked, array_slice(array(0L),1,0))
             ),
-            COALESCE(p.today_be_unblocked, CAST(ARRAY() AS ARRAY<BIGINT>))
+            array_slice(array(0L),1,0)
         ) AS blocked_by_list,
 
         -- 今日关注变化
-        SIZE(COALESCE(f.today_follow, CAST(ARRAY() AS ARRAY<BIGINT>)))
-        - SIZE(COALESCE(f.today_unfollow, CAST(ARRAY() AS ARRAY<BIGINT>))) AS following_chg,
+        GREATEST(SIZE(f.today_follow), 0)
+        - GREATEST(SIZE(f.today_unfollow), 0) AS following_chg,
 
         -- 今日粉丝变化
-        SIZE(COALESCE(p.today_be_followed, CAST(ARRAY() AS ARRAY<BIGINT>)))
-        - SIZE(COALESCE(p.today_be_unfollowed, CAST(ARRAY() AS ARRAY<BIGINT>))) AS follower_chg
+        GREATEST(SIZE(p.today_be_followed), 0)
+        - GREATEST(SIZE(p.today_be_unfollowed), 0) AS follower_chg
 
     FROM all_users u
     LEFT JOIN yesterday_snapshot y ON u.mid = y.mid
@@ -325,18 +337,18 @@ SELECT
 
     -- ========== 累计关注关系 ==========
     r.following_list                                                            AS following_list,
-    SIZE(r.following_list)                                                      AS following_cnt,
+    SIZE(COALESCE(r.following_list, array_slice(array(0L),1,0)))                AS following_cnt,
     r.follower_list                                                             AS follower_list,
-    SIZE(r.follower_list)                                                       AS follower_cnt,
+    SIZE(COALESCE(r.follower_list, array_slice(array(0L),1,0)))                 AS follower_cnt,
 
     ARRAY_INTERSECT(r.following_list, r.follower_list)                          AS mutual_follow_list,
-    SIZE(ARRAY_INTERSECT(r.following_list, r.follower_list))                    AS mutual_follow_cnt,
+    SIZE(COALESCE(ARRAY_INTERSECT(r.following_list, r.follower_list), array_slice(array(0L),1,0))) AS mutual_follow_cnt,
 
     -- ========== 累计拉黑关系 ==========
     r.blocking_list                                                             AS blocking_list,
-    SIZE(r.blocking_list)                                                       AS blocking_cnt,
+    SIZE(COALESCE(r.blocking_list, array_slice(array(0L),1,0)))                 AS blocking_cnt,
     r.blocked_by_list                                                           AS blocked_by_list,
-    SIZE(r.blocked_by_list)                                                     AS blocked_by_cnt,
+    SIZE(COALESCE(r.blocked_by_list, array_slice(array(0L),1,0)))               AS blocked_by_cnt,
 
     -- ========== 关系变化趋势 ==========
     r.following_chg                                                             AS following_chg,

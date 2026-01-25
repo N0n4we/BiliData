@@ -26,3 +26,16 @@
 ## 为什么用HBase存维度
   - 因为HBase的单条记录检索能力强，而且扩展性很好。Redis难以扩展，Hive适合批量处理
   - 因为这不只是一个分析型数据仓库，这还是一个后端数据库。通过降低实时链路的延迟，我相信这个数据仓库可以应对后端查询场景
+
+## 对齐粒度的问题
+
+  - 在开发维度表的时候，需要进行大量连接，因为Mock生成的评论出现了“一个评论ID对应多个视频ID”，导致使用评论ID连接产生笛卡尔积。解决办法是将视频ID也加入连接条件
+
+## Hive函数的问题
+
+  - SIZE(NULL)返回-1，SIZE(ARRAY())返回0
+  - CAST(ARRAY() AS ARRAY<BIGINT>)返回NULL，SIZE(CAST(ARRAY() AS ARRAY<BIGINT>))返回-1（气笑了，不得不用`array_slice(array(0L),1,0)`生成空的ARRAY<BIGINT>）
+
+## 已知问题
+
+  - 如果用户还未收藏视频，就将其取消收藏了，会导致视频收藏数-1，需要确保unfavorite和unlike行为是合法的
