@@ -6,14 +6,14 @@
 -- ============================================================
 -- 1. 创建数据库
 -- ============================================================
-CREATE DATABASE IF NOT EXISTS dws ON CLUSTER '{cluster}';
+CREATE DATABASE IF NOT EXISTS dws;
 
 -- ============================================================
 -- 2. dws_video_stats_account_di - UP主视频统计汇总表
 -- 主键：(mid, dt)
 -- 分区：按dt日期分区
 -- ============================================================
-CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di ON CLUSTER '{cluster}'
+CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di
 (
     -- 账号维度信息
     mid                         Int64           COMMENT '用户ID',
@@ -67,7 +67,7 @@ SETTINGS index_granularity = 8192;
 -- 主键：多维度组合 + dt
 -- 分区：按dt日期分区
 -- ============================================================
-CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_di ON CLUSTER '{cluster}'
+CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_di
 (
     -- 来源维度
     sex                         String          COMMENT '性别：男/女/保密',
@@ -100,7 +100,7 @@ SETTINGS index_granularity = 8192;
 -- 主键：多维度组合 + dt
 -- 分区：按dt日期分区
 -- ============================================================
-CREATE TABLE IF NOT EXISTS dws.dws_vip_order_source_di ON CLUSTER '{cluster}'
+CREATE TABLE IF NOT EXISTS dws.dws_vip_order_source_di
 (
     -- 订单维度
     order_status                String          COMMENT '订单状态',
@@ -150,7 +150,7 @@ SETTINGS index_granularity = 8192;
 -- 分区：按dt日期分区
 -- 说明：从埋点事件中提取注册来源信息，维度来源于埋点自带的app_context、device_info、properties字段
 -- ============================================================
-CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_from_event_di ON CLUSTER '{cluster}'
+CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_from_event_di
 (
     -- 来源维度（从埋点提取）
     platform                    String          COMMENT '平台：ios/android/web',
