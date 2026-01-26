@@ -25,6 +25,9 @@ streampark节点需要安装flink_1.17.2
 
 dolphinscheduler节点需要安装flink_1.17.2，配置FLINK_HOME，并替换`${FLINK_HOME}/conf/flink-conf.yaml`
 
+将flink-pom.xml里列出的jar包全部下载，复制到flink-jobmanager、flink-taskmanager、streampark、dolphinscheduler节点的`${FLINK_HOME}/lib/`下
+
+
 ## Flink slot总数 调整方法
 
 1. 增加单个 TaskManager 的 slot 数量

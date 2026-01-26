@@ -77,29 +77,6 @@ SELECT
 FROM kafka_app_all;
 ```
 
-```xml
-<!-- Kafka Connector -->
-<dependency>
-    <groupId>org.apache.flink</groupId>
-    <artifactId>flink-sql-connector-kafka</artifactId>
-    <version>1.17.2</version>
-</dependency>
-
-<!-- Hive Connector -->
-<dependency>
-    <groupId>org.apache.flink</groupId>
-    <artifactId>flink-sql-connector-hive-3.1.3_2.12</artifactId>
-    <version>1.17.2</version>
-</dependency>
-
-<!-- Hadoop -->
-<dependency>
-    <groupId>org.apache.flink</groupId>
-    <artifactId>flink-shaded-hadoop-2-uber</artifactId>
-    <version>2.8.3-10.0</version>
-</dependency>
-```
-
 
 ## HiveSQL
 
