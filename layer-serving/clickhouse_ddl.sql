@@ -143,3 +143,34 @@ ENGINE = ReplacingMergeTree(dw_create_time)
 PARTITION BY dt
 ORDER BY (dt, order_status, plan_id, pay_method, platform, channel, sex, `level`, official_type)
 SETTINGS index_granularity = 8192;
+
+-- ============================================================
+-- 5. dws_account_registry_source_from_event_di - 每日新注册账号来源分析表（基于埋点事件）
+-- 主键：多维度组合 + dt
+-- 分区：按dt日期分区
+-- 说明：从埋点事件中提取注册来源信息，维度来源于埋点自带的app_context、device_info、properties字段
+-- ============================================================
+CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_from_event_di ON CLUSTER '{cluster}'
+(
+    -- 来源维度（从埋点提取）
+    platform                    String          COMMENT '平台：ios/android/web',
+    channel                     String          COMMENT '渠道：AppStore/GooglePlay/官网等',
+    register_type               String          COMMENT '注册方式：phone/email/wechat等',
+    source_page                 String          COMMENT '来源页面',
+    os                          String          COMMENT '操作系统：iOS/Android等',
+    brand                       String          COMMENT '设备品牌：Apple/Xiaomi/Huawei等',
+    app_version                 String          COMMENT 'APP版本号',
+    network                     String          COMMENT '网络类型：WIFI/4G/5G等',
+
+    -- 聚合指标
+    new_account_cnt             Int64           COMMENT '新注册账号数',
+    new_device_cnt              Int64           COMMENT '新注册设备数',
+
+    -- ETL信息
+    dw_create_time              DateTime64(3)   COMMENT '数仓创建时间',
+    dt                          String          COMMENT '日期分区'
+)
+ENGINE = ReplacingMergeTree(dw_create_time)
+PARTITION BY dt
+ORDER BY (dt, platform, channel, register_type, source_page, os, brand, app_version, network)
+SETTINGS index_granularity = 8192;

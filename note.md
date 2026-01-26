@@ -45,3 +45,4 @@
 
   - 如果用户还未收藏视频，就将其取消收藏了，会导致视频收藏数-1，需要确保unfavorite和unlike行为是合法的
   - 实时链路DimAccount没有实时更新用户关系列表(following_list)，只实时更新计数(following_chg)
+  - 实时链路的dws作业考虑性能问题未进行look-up join，会比离线dws少很多维度
