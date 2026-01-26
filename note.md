@@ -36,6 +36,12 @@
   - SIZE(NULL)返回-1，SIZE(ARRAY())返回0
   - CAST(ARRAY() AS ARRAY<BIGINT>)返回NULL，SIZE(CAST(ARRAY() AS ARRAY<BIGINT>))返回-1（气笑了，不得不用`array_slice(array(0L),1,0)`生成空的ARRAY<BIGINT>）
 
+## 为什么Serving-Layer选用HBase存放实时维度？
+
+  - 因为HBase支持高并发单点查询
+  - Redis扩展性不好，Hive、ClickHouse单点并发性不好
+
 ## 已知问题
 
   - 如果用户还未收藏视频，就将其取消收藏了，会导致视频收藏数-1，需要确保unfavorite和unlike行为是合法的
+  - 实时链路DimAccount没有实时更新用户关系列表(following_list)，只实时更新计数(following_chg)
