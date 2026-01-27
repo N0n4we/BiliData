@@ -89,7 +89,7 @@ CREATE TABLE hbase_dim_comment (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- 4. 创建 HBase Sink 表 - 评论统计增量
@@ -105,7 +105,7 @@ CREATE TABLE hbase_dim_comment_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================

@@ -85,9 +85,9 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     PRIMARY KEY (mid, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = '${clickhouse.url}',
+    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
     'table-name' = 'dws_video_stats_account_di',
-    'username' = '${clickhouse.username}',
+    'username' = 'default',
     'password' = '${clickhouse.password}',
     'sink.buffer-flush.max-rows' = '1000',
     'sink.buffer-flush.interval' = '10s'

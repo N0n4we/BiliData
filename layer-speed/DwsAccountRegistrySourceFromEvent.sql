@@ -97,9 +97,9 @@ CREATE TABLE clickhouse_dws_account_registry_source_from_event (
     PRIMARY KEY (platform, channel, register_type, source_page, os, brand, app_version, network, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = '${clickhouse.url}',
+    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
     'table-name' = 'dws_account_registry_source_from_event_di',
-    'username' = '${clickhouse.username}',
+    'username' = 'default',
     'password' = '${clickhouse.password}',
     'sink.buffer-flush.max-rows' = '1000',
     'sink.buffer-flush.interval' = '10s'

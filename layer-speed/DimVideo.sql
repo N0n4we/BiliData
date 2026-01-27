@@ -142,7 +142,7 @@ CREATE TABLE hbase_dim_video (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- 5. 创建 HBase Sink 表 - 视频统计增量（不含评论数）
@@ -161,7 +161,7 @@ CREATE TABLE hbase_dim_video_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- 6. 创建 HBase Sink 表 - 视频评论数增量
@@ -174,7 +174,7 @@ CREATE TABLE hbase_dim_video_reply_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================

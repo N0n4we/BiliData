@@ -16,7 +16,7 @@ SET 'execution.runtime-mode' = 'batch';
 -- ============================================================
 CREATE CATALOG hive_prod WITH (
     'type' = 'hive',
-    'hive-conf-dir' = '${hive.conf.dir}'
+    'hive-conf-dir' = '/opt/hive/conf'
 );
 
 USE CATALOG hive_prod;
@@ -88,7 +88,7 @@ CREATE TABLE hbase_dim_account (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================
@@ -143,7 +143,7 @@ CREATE TABLE hbase_dim_video (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================
@@ -178,7 +178,7 @@ CREATE TABLE hbase_dim_comment (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================

@@ -77,9 +77,9 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     PRIMARY KEY (sex, `level`, age, birth_year, vip_type, `status`, official_type, theme, primary_tag, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = '${clickhouse.url}',
+    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
     'table-name' = 'dws_account_registry_source_di',
-    'username' = '${clickhouse.username}',
+    'username' = 'default',
     'password' = '${clickhouse.password}',
     'sink.buffer-flush.max-rows' = '1000',
     'sink.buffer-flush.interval' = '10s'

@@ -116,7 +116,7 @@ CREATE TABLE hbase_dim_account (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- 4. 创建 HBase Sink 表 - 用户关系变化（只写入变化量字段）
@@ -132,7 +132,7 @@ CREATE TABLE hbase_dim_account_relation (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
-    'zookeeper.quorum' = '${hbase.zookeeper.quorum}'
+    'zookeeper.quorum' = 'zookeeper:2181'
 );
 
 -- ============================================================
