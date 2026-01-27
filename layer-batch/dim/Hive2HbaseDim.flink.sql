@@ -20,7 +20,8 @@ USE CATALOG hive_prod;
 -- 2. 创建 HBase Sink 表 - dim_account
 -- rowkey: reverse(mid)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS hbase_dim_account (
+DROP TABLE IF EXISTS hbase_dim_account;
+CREATE TABLE hbase_dim_account (
     rowkey STRING,
     basic ROW<
         mid STRING,
@@ -83,35 +84,34 @@ CREATE TABLE IF NOT EXISTS hbase_dim_account (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 3. 创建 HBase Sink 表 - dim_video
 -- rowkey: reverse(bvid)
+-- 列族: basic, content, stats, meta
 -- ============================================================
-CREATE TABLE IF NOT EXISTS hbase_dim_video (
+DROP TABLE IF EXISTS hbase_dim_video;
+CREATE TABLE hbase_dim_video (
     rowkey STRING,
     basic ROW<
         bvid STRING,
-        title STRING,
-        cover STRING,
-        desc_text STRING,
-        duration STRING,
-        pubdate STRING,
         mid STRING,
-        category_id STRING,
-        category_name STRING,
+        pubdate STRING,
         state STRING,
         attribute STRING,
         is_private STRING
     >,
-    meta ROW<
-        upload_ip STRING,
-        camera STRING,
-        software STRING,
-        resolution STRING,
-        fps STRING
+    content ROW<
+        title STRING,
+        cover STRING,
+        desc_text STRING,
+        duration STRING,
+        category_id STRING,
+        category_name STRING
     >,
     stats ROW<
         view_count STRING,
@@ -122,14 +122,17 @@ CREATE TABLE IF NOT EXISTS hbase_dim_video (
         share_count STRING,
         like_count STRING
     >,
-    time_info ROW<
+    meta ROW<
         created_at STRING,
         updated_at STRING,
         created_date STRING,
         updated_date STRING,
-        pub_date STRING
-    >,
-    extra ROW<
+        pub_date STRING,
+        upload_ip STRING,
+        camera STRING,
+        software STRING,
+        resolution STRING,
+        fps STRING,
         audit_info STRING,
         meta_info STRING,
         stats_json STRING
@@ -138,22 +141,28 @@ CREATE TABLE IF NOT EXISTS hbase_dim_video (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 4. 创建 HBase Sink 表 - dim_comment
 -- rowkey: reverse(rpid)
+-- 列族: info, content, stats, meta
 -- ============================================================
-CREATE TABLE IF NOT EXISTS hbase_dim_comment (
+DROP TABLE IF EXISTS hbase_dim_comment;
+CREATE TABLE hbase_dim_comment (
     rowkey STRING,
-    basic ROW<
+    info ROW<
         rpid STRING,
         oid STRING,
         otype STRING,
         mid STRING,
         root STRING,
-        parent STRING,
+        parent STRING
+    >,
+    content ROW<
         content STRING
     >,
     stats ROW<
@@ -163,7 +172,7 @@ CREATE TABLE IF NOT EXISTS hbase_dim_comment (
         state STRING,
         is_root STRING
     >,
-    time_info ROW<
+    meta ROW<
         created_at STRING,
         updated_at STRING,
         created_date STRING,
@@ -173,7 +182,9 @@ CREATE TABLE IF NOT EXISTS hbase_dim_comment (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
@@ -249,8 +260,8 @@ SELECT
         DATE_FORMAT(dw_create_time, 'yyyy-MM-dd HH:mm:ss')
     )
 FROM dim.dim_account_df
-WHERE dt = '${bizdate}'
-  AND DATE_FORMAT(updated_at, 'yyyy-MM-dd') <= '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd')
+  AND DATE_FORMAT(updated_at, 'yyyy-MM-dd') <= DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
 -- 6. 同步 dim_video_df 到 HBase
@@ -262,25 +273,20 @@ SELECT
     -- basic 列族
     ROW(
         bvid,
-        title,
-        cover,
-        desc_text,
-        CAST(duration AS STRING),
-        CAST(pubdate AS STRING),
         CAST(mid AS STRING),
-        CAST(category_id AS STRING),
-        category_name,
+        CAST(pubdate AS STRING),
         CAST(state AS STRING),
         CAST(attribute AS STRING),
         CAST(is_private AS STRING)
     ),
-    -- meta 列族
+    -- content 列族
     ROW(
-        upload_ip,
-        camera,
-        software,
-        resolution,
-        CAST(fps AS STRING)
+        title,
+        cover,
+        desc_text,
+        CAST(duration AS STRING),
+        CAST(category_id AS STRING),
+        category_name
     ),
     -- stats 列族
     ROW(
@@ -292,23 +298,25 @@ SELECT
         CAST(share_count AS STRING),
         CAST(like_count AS STRING)
     ),
-    -- time_info 列族
+    -- meta 列族
     ROW(
         CAST(created_at AS STRING),
         CAST(updated_at AS STRING),
         created_date,
         updated_date,
-        pub_date
-    ),
-    -- extra 列族
-    ROW(
+        pub_date,
+        upload_ip,
+        camera,
+        software,
+        resolution,
+        CAST(fps AS STRING),
         audit_info,
         meta_info,
         stats
     )
 FROM dim.dim_video_df
-WHERE dt = '${bizdate}'
-  AND updated_date <= '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd')
+  AND updated_date <= DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
 -- 7. 同步 dim_comment_df 到 HBase
@@ -317,14 +325,17 @@ WHERE dt = '${bizdate}'
 INSERT INTO hbase_dim_comment
 SELECT
     REVERSE(CAST(rpid AS STRING)) AS rowkey,
-    -- basic 列族
+    -- info 列族
     ROW(
         CAST(rpid AS STRING),
         oid,
         CAST(otype AS STRING),
         CAST(mid AS STRING),
         CAST(root AS STRING),
-        CAST(parent AS STRING),
+        CAST(parent AS STRING)
+    ),
+    -- content 列族
+    ROW(
         content
     ),
     -- stats 列族
@@ -335,7 +346,7 @@ SELECT
         CAST(state AS STRING),
         CAST(is_root AS STRING)
     ),
-    -- time_info 列族
+    -- meta 列族
     ROW(
         CAST(created_at AS STRING),
         CAST(updated_at AS STRING),
@@ -343,5 +354,5 @@ SELECT
         updated_date
     )
 FROM dim.dim_comment_df
-WHERE dt = '${bizdate}'
-  AND updated_date <= '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd')
+  AND updated_date <= DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
