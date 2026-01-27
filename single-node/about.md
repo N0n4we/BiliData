@@ -14,8 +14,6 @@ create database ods; create database dwd; create database dim; create database d
 set mapreduce.task.io.sort.mb=10;
 ```
 
-hive节点的/opt/hive/conf需要复制到flink-jobmanager节点
-
 hive目录要改权限，让flink能写
 ```sh
 docker exec -u root -it flink-taskmanager chmod -R 777 /opt/hive/data/warehouse
@@ -26,6 +24,8 @@ streampark节点需要安装flink_1.17.2
 dolphinscheduler节点需要安装flink_1.17.2，配置FLINK_HOME，并替换`${FLINK_HOME}/conf/flink-conf.yaml`
 
 将flink-pom.xml里列出的jar包全部下载，复制到flink-jobmanager、flink-taskmanager、streampark、dolphinscheduler节点的`${FLINK_HOME}/lib/`下
+
+hive节点的/opt/hive/conf需要复制到flink-jobmanager、flink-taskmanager、streampark、dolphinscheduler节点
 
 
 ## Flink slot总数 调整方法
