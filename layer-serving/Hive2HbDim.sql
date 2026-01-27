@@ -160,7 +160,8 @@ CREATE TABLE hbase_dim_comment (
         otype STRING,
         mid STRING,
         root STRING,
-        parent STRING
+        parent STRING,
+        state STRING
     >,
     content ROW<
         content STRING
@@ -168,9 +169,7 @@ CREATE TABLE hbase_dim_comment (
     stats ROW<
         like_count STRING,
         dislike_count STRING,
-        reply_count STRING,
-        state STRING,
-        is_root STRING
+        reply_count STRING
     >,
     meta ROW<
         created_at STRING,
@@ -332,7 +331,8 @@ SELECT
         CAST(otype AS STRING),
         CAST(mid AS STRING),
         CAST(root AS STRING),
-        CAST(parent AS STRING)
+        CAST(parent AS STRING),
+        CAST(state AS STRING)
     ),
     -- content 列族
     ROW(
@@ -342,9 +342,7 @@ SELECT
     ROW(
         CAST(like_count AS STRING),
         CAST(dislike_count AS STRING),
-        CAST(reply_count AS STRING),
-        CAST(state AS STRING),
-        CAST(is_root AS STRING)
+        CAST(reply_count AS STRING)
     ),
     -- meta 列族
     ROW(
