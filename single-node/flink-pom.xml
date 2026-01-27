@@ -1,8 +1,8 @@
 <!-- HBase Connector -->
 <dependency>
-  <groupId>org.apache.flink</groupId>
-  <artifactId>flink-connector-hbase-2.2</artifactId>
-  <version>1.17.2</version>
+    <groupId>org.apache.flink</groupId>
+    <artifactId>flink-sql-connector-hbase-2.2</artifactId>
+    <version>1.17.2</version>
 </dependency>
 <!-- Hadoop -->
 <dependency>
@@ -12,9 +12,9 @@
 </dependency>
 <!-- JDBC for ClickHouse -->
 <dependency>
-  <groupId>org.apache.flink</groupId>
-  <artifactId>flink-connector-jdbc</artifactId>
-  <version>3.1.2-1.17</version>
+    <groupId>org.apache.flink</groupId>
+    <artifactId>flink-connector-jdbc</artifactId>
+    <version>3.1.2-1.17</version>
 </dependency>
 <!-- Kafka Connector -->
 <dependency>
@@ -27,4 +27,10 @@
     <groupId>org.apache.flink</groupId>
     <artifactId>flink-sql-connector-hive-3.1.3_2.12</artifactId>
     <version>1.17.2</version>
+</dependency>
+<!-- MySQL Connector for ClickHouse -->
+<dependency>
+    <groupId>com.mysql</groupId>
+    <artifactId>mysql-connector-j</artifactId>
+    <version>8.0.33</version>
 </dependency>

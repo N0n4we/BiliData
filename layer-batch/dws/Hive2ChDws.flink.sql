@@ -57,7 +57,8 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     PRIMARY KEY (mid, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_video_stats_account_di',
     'username' = 'default',
     'password' = '',
@@ -87,7 +88,8 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     PRIMARY KEY (sex, `level`, age, birth_year, vip_type, `status`, official_type, theme, primary_tag, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_account_registry_source_di',
     'username' = 'default',
     'password' = '',
@@ -131,7 +133,8 @@ CREATE TABLE clickhouse_dws_vip_order_source (
     PRIMARY KEY (order_status, plan_id, pay_method, platform, channel, sex, `level`, official_type, dt) NOT ENFORCED
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_vip_order_source_di',
     'username' = 'default',
     'password' = '',
