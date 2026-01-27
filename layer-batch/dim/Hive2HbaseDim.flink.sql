@@ -2,17 +2,12 @@
 -- Hive2HbaseDim - 批处理层将Hive dim表同步到HBase
 -- 功能：将Hive中dt=${bizdate}的所有dim_*表upsert到HBase
 -- 条件：仅同步updated_at日期 <= bizdate的记录
---
--- 包含表：
---   1. dim_account_df -> dim:dim_account
---   2. dim_video_df   -> dim:dim_video
---   3. dim_comment_df -> dim:dim_comment
 -- ============================================================
 
 SET 'execution.runtime-mode' = 'batch';
 
 -- ============================================================
--- 1. 创建 Hive Source 表 - dim_account_df
+-- 1. 创建 Hive Catalog
 -- ============================================================
 CREATE CATALOG hive_prod WITH (
     'type' = 'hive',
@@ -25,7 +20,7 @@ USE CATALOG hive_prod;
 -- 2. 创建 HBase Sink 表 - dim_account
 -- rowkey: reverse(mid)
 -- ============================================================
-CREATE TABLE hbase_dim_account (
+CREATE TABLE IF NOT EXISTS hbase_dim_account (
     rowkey STRING,
     basic ROW<
         mid STRING,
@@ -95,7 +90,7 @@ CREATE TABLE hbase_dim_account (
 -- 3. 创建 HBase Sink 表 - dim_video
 -- rowkey: reverse(bvid)
 -- ============================================================
-CREATE TABLE hbase_dim_video (
+CREATE TABLE IF NOT EXISTS hbase_dim_video (
     rowkey STRING,
     basic ROW<
         bvid STRING,
@@ -150,7 +145,7 @@ CREATE TABLE hbase_dim_video (
 -- 4. 创建 HBase Sink 表 - dim_comment
 -- rowkey: reverse(rpid)
 -- ============================================================
-CREATE TABLE hbase_dim_comment (
+CREATE TABLE IF NOT EXISTS hbase_dim_comment (
     rowkey STRING,
     basic ROW<
         rpid STRING,
@@ -184,10 +179,12 @@ CREATE TABLE hbase_dim_comment (
 -- ============================================================
 -- 5. 同步 dim_account_df 到 HBase
 -- 条件：dt = ${bizdate} AND DATE(updated_at) <= ${bizdate}
+-- 修改：使用 CAST(array AS STRING) 替代 ARRAY_JOIN/TRANSFORM
 -- ============================================================
 INSERT INTO hbase_dim_account
 SELECT
     REVERSE(CAST(mid AS STRING)) AS rowkey,
+    -- basic 列族
     ROW(
         CAST(mid AS STRING),
         nick_name,
@@ -199,6 +196,7 @@ SELECT
         CAST(age AS STRING),
         CAST(birth_year AS STRING)
     ),
+    -- status 列族
     ROW(
         CAST(coins AS STRING),
         CAST(vip_type AS STRING),
@@ -207,11 +205,13 @@ SELECT
         CAST(`status` AS STRING),
         status_name
     ),
+    -- official 列族
     ROW(
         CAST(official_type AS STRING),
         official_desc,
         CAST(is_official AS STRING)
     ),
+    -- setting 列族
     ROW(
         CAST(privacy_show_fav AS STRING),
         CAST(privacy_show_history AS STRING),
@@ -220,49 +220,28 @@ SELECT
         CAST(push_at AS STRING),
         theme
     ),
+    -- tag 列族 (使用 CAST 替代 ARRAY_JOIN)
     ROW(
-        CASE
-            WHEN tags IS NOT NULL AND CARDINALITY(tags) > 0
-            THEN CONCAT('[', ARRAY_JOIN(tags, ','), ']')
-            ELSE '[]'
-        END,
+        IF(tags IS NULL OR CARDINALITY(tags) = 0, '[]', CAST(tags AS STRING)),
         CAST(tag_cnt AS STRING),
         primary_tag
     ),
+    -- relation 列族 (使用 CAST 替代 TRANSFORM + ARRAY_JOIN)
     ROW(
-        CASE
-            WHEN following_list IS NOT NULL AND CARDINALITY(following_list) > 0
-            THEN CONCAT('[', ARRAY_JOIN(TRANSFORM(following_list, x -> CAST(x AS STRING)), ','), ']')
-            ELSE '[]'
-        END,
+        IF(following_list IS NULL OR CARDINALITY(following_list) = 0, '[]', CAST(following_list AS STRING)),
         CAST(following_cnt AS STRING),
-        CASE
-            WHEN follower_list IS NOT NULL AND CARDINALITY(follower_list) > 0
-            THEN CONCAT('[', ARRAY_JOIN(TRANSFORM(follower_list, x -> CAST(x AS STRING)), ','), ']')
-            ELSE '[]'
-        END,
+        IF(follower_list IS NULL OR CARDINALITY(follower_list) = 0, '[]', CAST(follower_list AS STRING)),
         CAST(follower_cnt AS STRING),
-        CASE
-            WHEN mutual_follow_list IS NOT NULL AND CARDINALITY(mutual_follow_list) > 0
-            THEN CONCAT('[', ARRAY_JOIN(TRANSFORM(mutual_follow_list, x -> CAST(x AS STRING)), ','), ']')
-            ELSE '[]'
-        END,
+        IF(mutual_follow_list IS NULL OR CARDINALITY(mutual_follow_list) = 0, '[]', CAST(mutual_follow_list AS STRING)),
         CAST(mutual_follow_cnt AS STRING),
-        CASE
-            WHEN blocking_list IS NOT NULL AND CARDINALITY(blocking_list) > 0
-            THEN CONCAT('[', ARRAY_JOIN(TRANSFORM(blocking_list, x -> CAST(x AS STRING)), ','), ']')
-            ELSE '[]'
-        END,
+        IF(blocking_list IS NULL OR CARDINALITY(blocking_list) = 0, '[]', CAST(blocking_list AS STRING)),
         CAST(blocking_cnt AS STRING),
-        CASE
-            WHEN blocked_by_list IS NOT NULL AND CARDINALITY(blocked_by_list) > 0
-            THEN CONCAT('[', ARRAY_JOIN(TRANSFORM(blocked_by_list, x -> CAST(x AS STRING)), ','), ']')
-            ELSE '[]'
-        END,
+        IF(blocked_by_list IS NULL OR CARDINALITY(blocked_by_list) = 0, '[]', CAST(blocked_by_list AS STRING)),
         CAST(blocked_by_cnt AS STRING),
         CAST(following_chg AS STRING),
         CAST(follower_chg AS STRING)
     ),
+    -- etl 列族
     ROW(
         DATE_FORMAT(created_at, 'yyyy-MM-dd HH:mm:ss'),
         DATE_FORMAT(updated_at, 'yyyy-MM-dd HH:mm:ss'),
@@ -280,6 +259,7 @@ WHERE dt = '${bizdate}'
 INSERT INTO hbase_dim_video
 SELECT
     REVERSE(bvid) AS rowkey,
+    -- basic 列族
     ROW(
         bvid,
         title,
@@ -294,6 +274,7 @@ SELECT
         CAST(attribute AS STRING),
         CAST(is_private AS STRING)
     ),
+    -- meta 列族
     ROW(
         upload_ip,
         camera,
@@ -301,6 +282,7 @@ SELECT
         resolution,
         CAST(fps AS STRING)
     ),
+    -- stats 列族
     ROW(
         CAST(view_count AS STRING),
         CAST(danmaku_count AS STRING),
@@ -310,6 +292,7 @@ SELECT
         CAST(share_count AS STRING),
         CAST(like_count AS STRING)
     ),
+    -- time_info 列族
     ROW(
         CAST(created_at AS STRING),
         CAST(updated_at AS STRING),
@@ -317,6 +300,7 @@ SELECT
         updated_date,
         pub_date
     ),
+    -- extra 列族
     ROW(
         audit_info,
         meta_info,
@@ -333,6 +317,7 @@ WHERE dt = '${bizdate}'
 INSERT INTO hbase_dim_comment
 SELECT
     REVERSE(CAST(rpid AS STRING)) AS rowkey,
+    -- basic 列族
     ROW(
         CAST(rpid AS STRING),
         oid,
@@ -342,6 +327,7 @@ SELECT
         CAST(parent AS STRING),
         content
     ),
+    -- stats 列族
     ROW(
         CAST(like_count AS STRING),
         CAST(dislike_count AS STRING),
@@ -349,6 +335,7 @@ SELECT
         CAST(state AS STRING),
         CAST(is_root AS STRING)
     ),
+    -- time_info 列族
     ROW(
         CAST(created_at AS STRING),
         CAST(updated_at AS STRING),
