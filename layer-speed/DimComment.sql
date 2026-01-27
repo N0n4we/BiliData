@@ -3,14 +3,12 @@
 -- 数据源：
 --   1. app_comment - 评论基础数据
 --   2. app_event_comment - 评论行为埋点（点赞/点踩/回复等）
--- 写入：dim:dim_comment
---
--- 注意：离线层的 like_count/dislike_count/reply_count 是累计值
---       实时层写入的是增量值，会在同一字段上累加
---       批处理层每日会重新计算正确的累计值
+-- hbase_dim_comment 是累计值
+-- hbase_dim_comment_incr 是每日增量
 -- ============================================================
 
 -- 1. 创建 Kafka Source 表 - 评论基础数据
+DROP TABLE IF EXISTS kafka_comment;
 CREATE TABLE kafka_comment (
     rpid                BIGINT,
     oid                 STRING,
@@ -29,7 +27,7 @@ CREATE TABLE kafka_comment (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_comment',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dim-comment',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -38,6 +36,7 @@ CREATE TABLE kafka_comment (
 );
 
 -- 2. 创建 Kafka Source 表 - 评论行为埋点
+DROP TABLE IF EXISTS kafka_event_comment;
 CREATE TABLE kafka_event_comment (
     event_id            STRING,
     mid                 BIGINT,
@@ -55,7 +54,7 @@ CREATE TABLE kafka_event_comment (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_comment',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dim-comment-event',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -64,6 +63,7 @@ CREATE TABLE kafka_event_comment (
 );
 
 -- 3. 创建 HBase Sink 表 - 评论基础信息
+DROP TABLE IF EXISTS hbase_dim_comment;
 CREATE TABLE hbase_dim_comment (
     rowkey STRING,
     info ROW<
@@ -73,7 +73,6 @@ CREATE TABLE hbase_dim_comment (
         mid STRING,
         root STRING,
         parent STRING,
-        is_root STRING,
         state STRING
     >,
     content ROW<
@@ -89,12 +88,14 @@ CREATE TABLE hbase_dim_comment (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- 4. 创建 HBase Sink 表 - 评论统计增量
--- 注意：实时层写入的是增量值，批处理层会重新计算累计值
-CREATE TABLE hbase_dim_comment_stats (
+DROP TABLE IF EXISTS hbase_dim_comment_incr;
+CREATE TABLE hbase_dim_comment_incr (
     rowkey STRING,
     stats ROW<
         like_count STRING,
@@ -105,12 +106,15 @@ CREATE TABLE hbase_dim_comment_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 5. 插入评论基础数据
 -- ============================================================
+
 INSERT INTO hbase_dim_comment
 SELECT
     REVERSE(CAST(rpid AS STRING)) AS rowkey,
@@ -121,7 +125,6 @@ SELECT
         CAST(mid AS STRING),
         CAST(root AS STRING),
         CAST(parent AS STRING),
-        CASE WHEN root = 0 THEN 'true' ELSE 'false' END,
         CAST(state AS STRING)
     ),
     ROW(
@@ -138,34 +141,43 @@ WHERE rpid IS NOT NULL AND oid IS NOT NULL;
 
 -- ============================================================
 -- 6. 实时聚合评论行为，计算统计增量
--- 使用滚动窗口聚合，每10秒输出一次
--- 事件类型：comment_like, comment_unlike, comment_dislike, comment_undislike, comment_reply
---
--- 注意：这里写入的是增量值（净变化量）
---       like_count = 点赞数 - 取消点赞数（净增量）
---       dislike_count = 点踩数 - 取消点踩数（净增量）
---       reply_count = 回复数（增量）
 -- ============================================================
-INSERT INTO hbase_dim_comment_stats
+
+-- 创建一个视图，将 comment_reply 事件的 rpid 替换为 parent_rpid，其他事件保持原 rpid
+CREATE TEMPORARY VIEW normalized_events AS
 SELECT
-    REVERSE(CAST(rpid AS STRING)) AS rowkey,
+    event_id,
+    CASE
+        WHEN event_id = 'comment_reply' THEN properties.parent_rpid
+        ELSE rpid
+    END AS target_rpid,
+    proc_time
+FROM kafka_event_comment
+WHERE rpid IS NOT NULL
+  AND event_id IN ('comment_like', 'comment_unlike', 'comment_dislike', 'comment_undislike', 'comment_reply')
+  AND (event_id <> 'comment_reply' OR properties.parent_rpid IS NOT NULL);
+
+
+INSERT INTO hbase_dim_comment_incr
+SELECT
+    REVERSE(CAST(target_rpid AS STRING)) AS rowkey,
     ROW(
-        -- like_count: 点赞净增量
         CAST(SUM(CASE
             WHEN event_id = 'comment_like' THEN 1
             WHEN event_id = 'comment_unlike' THEN -1
             ELSE 0
         END) AS STRING),
-        -- dislike_count: 点踩净增量
         CAST(SUM(CASE
             WHEN event_id = 'comment_dislike' THEN 1
             WHEN event_id = 'comment_undislike' THEN -1
             ELSE 0
         END) AS STRING),
-        -- reply_count: 回复增量
         CAST(SUM(CASE WHEN event_id = 'comment_reply' THEN 1 ELSE 0 END) AS STRING)
     )
-FROM kafka_event_comment
-WHERE rpid IS NOT NULL
-  AND event_id IN ('comment_like', 'comment_unlike', 'comment_dislike', 'comment_undislike', 'comment_reply')
-GROUP BY rpid, TUMBLE(proc_time, INTERVAL '10' SECOND);
+FROM TABLE(
+    CUMULATE(TABLE normalized_events, DESCRIPTOR(proc_time), INTERVAL '10' SECOND, INTERVAL '1' DAY)
+)
+GROUP BY
+    target_rpid,
+    window_start,
+    window_end;

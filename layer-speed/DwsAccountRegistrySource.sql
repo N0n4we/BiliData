@@ -14,6 +14,7 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
 -- 1. 创建 Kafka Source 表 - 账号埋点
+DROP TABLE IF EXISTS kafka_event_account;
 CREATE TABLE kafka_event_account (
     event_id            STRING,
     mid                 BIGINT,
@@ -43,7 +44,7 @@ CREATE TABLE kafka_event_account (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_account',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dws-account-registry-source',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -53,6 +54,7 @@ CREATE TABLE kafka_event_account (
 
 -- 2. 创建 ClickHouse Sink 表 - 每日新注册账号来源分析表
 -- 字段与batch层/ClickHouse DDL保持一致，维度字段填null
+DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
 CREATE TABLE clickhouse_dws_account_registry_source (
     -- 来源维度（实时层填null，由离线层补全）
     sex                     STRING,
@@ -73,16 +75,16 @@ CREATE TABLE clickhouse_dws_account_registry_source (
 
     -- ETL信息
     dw_create_time          TIMESTAMP(3),
-    dt                      STRING,
-    PRIMARY KEY (sex, `level`, age, birth_year, vip_type, `status`, official_type, theme, primary_tag, dt) NOT ENFORCED
+    dt                      STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_account_registry_source_di',
     'username' = 'default',
-    'password' = '${clickhouse.password}',
-    'sink.buffer-flush.max-rows' = '1000',
-    'sink.buffer-flush.interval' = '10s'
+    'password' = '',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
@@ -92,21 +94,22 @@ CREATE TABLE clickhouse_dws_account_registry_source (
 --   - 统计新注册账号（account_register事件）
 --   - 维度字段填null，由离线层T+1覆盖补全
 -- ============================================================
+
 INSERT INTO clickhouse_dws_account_registry_source
 SELECT
-    -- 来源维度（填null，由离线层补全）
-    CAST(NULL AS STRING)            AS sex,
-    CAST(NULL AS INT)               AS `level`,
-    CAST(NULL AS INT)               AS age,
-    CAST(NULL AS INT)               AS birth_year,
-    CAST(NULL AS INT)               AS vip_type,
-    CAST(NULL AS STRING)            AS vip_type_name,
-    CAST(NULL AS INT)               AS `status`,
-    CAST(NULL AS STRING)            AS status_name,
-    CAST(NULL AS INT)               AS official_type,
-    CAST(NULL AS BOOLEAN)           AS is_official,
-    CAST(NULL AS STRING)            AS theme,
-    CAST(NULL AS STRING)            AS primary_tag,
+    -- 使用占位符代替 NULL
+    'unknown'                       AS sex,
+    -1                              AS `level`,
+    -1                              AS age,
+    -1                              AS birth_year,
+    -1                              AS vip_type,
+    'unknown'                       AS vip_type_name,
+    -1                              AS `status`,
+    'unknown'                       AS status_name,
+    -1                              AS official_type,
+    FALSE                           AS is_official,
+    'unknown'                       AS theme,
+    'unknown'                       AS primary_tag,
 
     -- 聚合指标（当天累计值）
     COUNT(*)                        AS new_account_cnt,
@@ -119,8 +122,8 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_account,
         DESCRIPTOR(event_time),
-        INTERVAL '1' MINUTE,    -- 步长：每1分钟输出一次
-        INTERVAL '1' DAY        -- 最大窗口：1天（从00:00开始）
+        INTERVAL '5' SECOND,
+        INTERVAL '1' DAY
     )
 )
 WHERE event_id = 'account_register'

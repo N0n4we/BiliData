@@ -14,6 +14,7 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
 -- 1. 创建 Kafka Source 表 - 视频行为埋点
+DROP TABLE IF EXISTS kafka_event_video;
 CREATE TABLE kafka_event_video (
     event_id            STRING,
     mid                 BIGINT,
@@ -30,7 +31,7 @@ CREATE TABLE kafka_event_video (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_video',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dws-video-stats-account',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -40,6 +41,7 @@ CREATE TABLE kafka_event_video (
 
 -- 2. 创建 ClickHouse Sink 表 - UP主视频统计汇总表
 -- 字段与batch层/ClickHouse DDL保持一致，维度字段填null
+DROP TABLE IF EXISTS clickhouse_dws_video_stats_account;
 CREATE TABLE clickhouse_dws_video_stats_account (
     -- 账号维度信息（实时层填null，由离线层补全）
     mid                         BIGINT,
@@ -81,16 +83,16 @@ CREATE TABLE clickhouse_dws_video_stats_account (
 
     -- ETL信息
     dw_create_time              TIMESTAMP(3),
-    dt                          STRING,
-    PRIMARY KEY (mid, dt) NOT ENFORCED
+    dt                          STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_video_stats_account_di',
     'username' = 'default',
-    'password' = '${clickhouse.password}',
-    'sink.buffer-flush.max-rows' = '1000',
-    'sink.buffer-flush.interval' = '10s'
+    'password' = '',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
@@ -101,6 +103,7 @@ CREATE TABLE clickhouse_dws_video_stats_account (
 --   - 维度字段填null，由离线层T+1覆盖补全
 --   - video_triple事件同时计入点赞/投币/收藏（与DimVideo.sql口径一致）
 -- ============================================================
+
 INSERT INTO clickhouse_dws_video_stats_account
 SELECT
     -- 账号维度信息（填null，由离线层补全）
@@ -171,8 +174,8 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_video,
         DESCRIPTOR(event_time),
-        INTERVAL '1' MINUTE,    -- 步长：每1分钟输出一次
-        INTERVAL '1' DAY        -- 最大窗口：1天（从00:00开始）
+        INTERVAL '5' SECOND,
+        INTERVAL '1' DAY
     )
 )
 WHERE mid IS NOT NULL

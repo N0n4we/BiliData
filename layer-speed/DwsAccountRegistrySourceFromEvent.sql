@@ -14,6 +14,7 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
 -- 1. 创建 Kafka Source 表 - 账号埋点
+DROP TABLE IF EXISTS kafka_event_account;
 CREATE TABLE kafka_event_account (
     event_id            STRING,
     trace_id            STRING,
@@ -67,7 +68,7 @@ CREATE TABLE kafka_event_account (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_account',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dws-account-registry-source-from-event',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -76,6 +77,7 @@ CREATE TABLE kafka_event_account (
 );
 
 -- 2. 创建 ClickHouse Sink 表 - 每日新注册账号来源分析表（基于埋点事件）
+DROP TABLE IF EXISTS clickhouse_dws_account_registry_source_from_event;
 CREATE TABLE clickhouse_dws_account_registry_source_from_event (
     -- 来源维度（从埋点提取）
     platform                    STRING,
@@ -93,16 +95,16 @@ CREATE TABLE clickhouse_dws_account_registry_source_from_event (
 
     -- ETL信息
     dw_create_time              TIMESTAMP(3),
-    dt                          STRING,
-    PRIMARY KEY (platform, channel, register_type, source_page, os, brand, app_version, network, dt) NOT ENFORCED
+    dt                          STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:clickhouse://clickhouse:8123/default',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_account_registry_source_from_event_di',
     'username' = 'default',
-    'password' = '${clickhouse.password}',
-    'sink.buffer-flush.max-rows' = '1000',
-    'sink.buffer-flush.interval' = '10s'
+    'password' = '',
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
@@ -112,6 +114,7 @@ CREATE TABLE clickhouse_dws_account_registry_source_from_event (
 --   - 统计新注册账号（account_register事件）
 --   - 按埋点自带的来源信息聚合
 -- ============================================================
+
 INSERT INTO clickhouse_dws_account_registry_source_from_event
 SELECT
     -- 来源维度（从埋点提取）
@@ -136,8 +139,8 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_account,
         DESCRIPTOR(event_time),
-        INTERVAL '1' MINUTE,    -- 步长：每1分钟输出一次
-        INTERVAL '1' DAY        -- 最大窗口：1天（从00:00开始）
+        INTERVAL '5' SECOND,
+        INTERVAL '1' DAY
     )
 )
 WHERE event_id = 'account_register'

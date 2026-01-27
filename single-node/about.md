@@ -32,6 +32,8 @@ rest.address: flink-jobmanager
 
 hive节点的/opt/hive/conf需要复制到flink-jobmanager、flink-taskmanager、streampark、dolphinscheduler节点
 
+调整容器时区（尤其是taskmanager）`ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime`
+
 
 ## Flink slot总数 调整方法
 

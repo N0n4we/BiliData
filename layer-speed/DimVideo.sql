@@ -4,14 +4,10 @@
 --   1. app_video_content - 视频基础数据
 --   2. app_event_video - 视频行为埋点（观看/点赞/投币/收藏/分享/弹幕等）
 --   3. app_event_comment - 评论行为埋点（用于统计视频评论数）
--- 写入：dim:dim_video
---
--- 注意：离线层的统计值是累计值（昨日累计 + 今日增量）
---       实时层写入的是增量值
---       批处理层每日会重新计算正确的累计值
 -- ============================================================
 
 -- 1. 创建 Kafka Source 表 - 视频基础数据
+DROP TABLE IF EXISTS kafka_video_content;
 CREATE TABLE kafka_video_content (
     bvid                STRING,
     title               STRING,
@@ -48,7 +44,7 @@ CREATE TABLE kafka_video_content (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_video_content',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dim-video',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -57,6 +53,7 @@ CREATE TABLE kafka_video_content (
 );
 
 -- 2. 创建 Kafka Source 表 - 视频行为埋点
+DROP TABLE IF EXISTS kafka_event_video;
 CREATE TABLE kafka_event_video (
     event_id            STRING,
     mid                 BIGINT,
@@ -70,7 +67,7 @@ CREATE TABLE kafka_event_video (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_video',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dim-video-event',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -79,6 +76,7 @@ CREATE TABLE kafka_event_video (
 );
 
 -- 3. 创建 Kafka Source 表 - 评论行为埋点（用于统计视频评论数）
+DROP TABLE IF EXISTS kafka_event_comment_for_video;
 CREATE TABLE kafka_event_comment_for_video (
     event_id            STRING,
     mid                 BIGINT,
@@ -96,7 +94,7 @@ CREATE TABLE kafka_event_comment_for_video (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'app_event_comment',
-    'properties.bootstrap.servers' = '${kafka.bootstrap.servers}',
+    'properties.bootstrap.servers' = 'kafka:29092',
     'properties.group.id' = 'flink-dim-video-comment',
     'scan.startup.mode' = 'latest-offset',
     'format' = 'json',
@@ -105,6 +103,7 @@ CREATE TABLE kafka_event_comment_for_video (
 );
 
 -- 4. 创建 HBase Sink 表 - 视频基础信息
+DROP TABLE IF EXISTS hbase_dim_video;
 CREATE TABLE hbase_dim_video (
     rowkey STRING,
     basic ROW<
@@ -142,12 +141,12 @@ CREATE TABLE hbase_dim_video (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181'
 );
 
 -- 5. 创建 HBase Sink 表 - 视频统计增量（不含评论数）
--- 注意：实时层写入的是增量值，批处理层会重新计算累计值
-CREATE TABLE hbase_dim_video_stats (
+DROP TABLE IF EXISTS hbase_dim_video_incr;
+CREATE TABLE hbase_dim_video_incr (
     rowkey STRING,
     stats ROW<
         view_count STRING,
@@ -161,11 +160,12 @@ CREATE TABLE hbase_dim_video_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181'
 );
 
 -- 6. 创建 HBase Sink 表 - 视频评论数增量
-CREATE TABLE hbase_dim_video_reply_stats (
+DROP TABLE IF EXISTS hbase_dim_video_reply_incr;
+CREATE TABLE hbase_dim_video_reply_incr (
     rowkey STRING,
     stats ROW<
         reply_count STRING
@@ -174,12 +174,13 @@ CREATE TABLE hbase_dim_video_reply_stats (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'zookeeper:2181'
+    'zookeeper.quorum' = 'hbase-master:2181'
 );
 
 -- ============================================================
 -- 7. 插入视频基础数据
 -- ============================================================
+
 INSERT INTO hbase_dim_video
 SELECT
     REVERSE(bvid) AS rowkey,
@@ -233,19 +234,10 @@ WHERE bvid IS NOT NULL;
 
 -- ============================================================
 -- 8. 实时聚合视频行为，计算统计增量
--- 使用滚动窗口聚合，每10秒输出一次
 -- 事件类型：video_view, video_like, video_unlike, video_coin,
 --          video_favorite, video_unfavorite, video_share, video_danmaku, video_triple
---
--- 注意：这里写入的是增量值（净变化量）
---       view_count = 观看次数（增量）
---       like_count = 点赞数 - 取消点赞数 + 三连（净增量）
---       favorite_count = 收藏数 - 取消收藏数（净增量）
---       coin_count = 投币数（增量，考虑coin_count字段）
---       share_count = 分享数（增量）
---       danmaku_count = 弹幕数（增量）
 -- ============================================================
-INSERT INTO hbase_dim_video_stats
+INSERT INTO hbase_dim_video_incr
 SELECT
     REVERSE(bvid) AS rowkey,
     ROW(
@@ -276,29 +268,46 @@ SELECT
             ELSE 0
         END) AS STRING)
     )
-FROM kafka_event_video
+FROM TABLE(
+    CUMULATE(
+        DATA => TABLE kafka_event_video,
+        TIMECOL => DESCRIPTOR(proc_time),
+        STEP => INTERVAL '10' SECOND,
+        SIZE => INTERVAL '1' DAY
+    )
+)
 WHERE bvid IS NOT NULL
   AND event_id IN ('video_view', 'video_like', 'video_unlike', 'video_coin',
                    'video_favorite', 'video_unfavorite', 'video_share', 'video_danmaku', 'video_triple')
-GROUP BY bvid, TUMBLE(proc_time, INTERVAL '10' SECOND);
+GROUP BY
+    bvid,
+    window_start,
+    window_end;
+
 
 -- ============================================================
 -- 9. 实时聚合评论事件，计算视频评论数增量
--- 使用滚动窗口聚合，每10秒输出一次
 -- 事件类型：comment_create（仅统计根评论，otype=1 表示视频评论）
---
--- 注意：这里写入的是增量值
---       reply_count = 评论数（增量）
 -- ============================================================
-INSERT INTO hbase_dim_video_reply_stats
+INSERT INTO hbase_dim_video_reply_incr
 SELECT
     REVERSE(oid) AS rowkey,
     ROW(
         -- reply_count: 评论增量（仅统计根评论）
-        CAST(SUM(CASE WHEN properties.root_rpid = 0 THEN 1 ELSE 0 END) AS STRING)
+        CAST(SUM(CASE WHEN rpid = properties.root_rpid THEN 1 ELSE 0 END) AS STRING)
     )
-FROM kafka_event_comment_for_video
+FROM TABLE(
+    CUMULATE(
+        DATA => TABLE kafka_event_comment_for_video,
+        TIMECOL => DESCRIPTOR(proc_time),
+        STEP => INTERVAL '10' SECOND,
+        SIZE => INTERVAL '1' DAY
+    )
+)
 WHERE oid IS NOT NULL
   AND event_id = 'comment_create'
   AND properties.otype = 1
-GROUP BY oid, TUMBLE(proc_time, INTERVAL '10' SECOND);
+GROUP BY
+    oid,
+    window_start,
+    window_end;

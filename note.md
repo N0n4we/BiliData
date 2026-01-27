@@ -41,6 +41,10 @@
   - 因为HBase支持高并发单点查询
   - Redis扩展性不好，Hive、ClickHouse单点并发性不好
 
+## 实时处理开窗有哪些注意的
+
+  - 使用event_ts并设置watermark允许迟到的时候，需要注意每个taskmanager的时区需要和event_ts时区一致，否则无法落入窗内
+
 ## 已知问题
 
   - 如果用户还未收藏视频，就将其取消收藏了，会导致视频收藏数-1，需要确保unfavorite和unlike行为是合法的
