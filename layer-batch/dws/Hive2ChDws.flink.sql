@@ -24,6 +24,7 @@ USE CATALOG hive_prod;
 -- ============================================================
 -- 2. 创建 ClickHouse Sink 表 - dws_video_stats_account_di
 -- ============================================================
+DROP TABLE IF EXISTS clickhouse_dws_video_stats_account;
 CREATE TABLE clickhouse_dws_video_stats_account (
     mid                         BIGINT,
     nick_name                   STRING,
@@ -53,22 +54,22 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     total_danmaku_count         BIGINT,
     total_triple_count          BIGINT,
     dw_create_time              TIMESTAMP(3),
-    dt                          STRING,
-    PRIMARY KEY (mid, dt) NOT ENFORCED
+    dt                          STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
     'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_video_stats_account_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10000',
-    'sink.buffer-flush.interval' = '30s'
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 3. 创建 ClickHouse Sink 表 - dws_account_registry_source_di
 -- ============================================================
+DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
 CREATE TABLE clickhouse_dws_account_registry_source (
     sex                     STRING,
     `level`                 INT,
@@ -84,22 +85,22 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     primary_tag             STRING,
     new_account_cnt         BIGINT,
     dw_create_time          TIMESTAMP(3),
-    dt                      STRING,
-    PRIMARY KEY (sex, `level`, age, birth_year, vip_type, `status`, official_type, theme, primary_tag, dt) NOT ENFORCED
+    dt                      STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
     'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_account_registry_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10000',
-    'sink.buffer-flush.interval' = '30s'
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 4. 创建 ClickHouse Sink 表 - dws_vip_order_source_di
 -- ============================================================
+DROP TABLE IF EXISTS clickhouse_dws_vip_order_source;
 CREATE TABLE clickhouse_dws_vip_order_source (
     order_status            STRING,
     plan_id                 STRING,
@@ -129,25 +130,25 @@ CREATE TABLE clickhouse_dws_vip_order_source (
     discount_amount         DECIMAL(12,2),
     pay_duration_sec        INT,
     dw_create_time          TIMESTAMP(3),
-    dt                      STRING,
-    PRIMARY KEY (order_status, plan_id, pay_method, platform, channel, sex, `level`, official_type, dt) NOT ENFORCED
+    dt                      STRING
 ) WITH (
     'connector' = 'jdbc',
-    'url' = 'jdbc:mysql://clickhouse:9004/default?useSSL=false&allowPublicKeyRetrieval=true',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
     'driver' = 'com.mysql.cj.jdbc.Driver',
     'table-name' = 'dws_vip_order_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10000',
-    'sink.buffer-flush.interval' = '30s'
+    'sink.buffer-flush.max-rows' = '10',
+    'sink.buffer-flush.interval' = '1s'
 );
 
 -- ============================================================
 -- 5. 同步 dws_video_stats_account_di 到 ClickHouse
+-- 主键: mid, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_video_stats_account
 SELECT
-    mid,
+    COALESCE(mid, 0) AS mid, -- 主键防空
     nick_name,
     sex,
     `level`,
@@ -177,53 +178,55 @@ SELECT
     dw_create_time,
     dt
 FROM dws.dws_video_stats_account_di
-WHERE dt = '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
 -- 6. 同步 dws_account_registry_source_di 到 ClickHouse
+-- 主键: sex, level, age, birth_year, vip_type, status, official_type, theme, primary_tag, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_account_registry_source
 SELECT
-    sex,
-    `level`,
-    age,
-    birth_year,
-    vip_type,
+    COALESCE(sex, 'unknown') AS sex, -- 主键防空，String默认为unknown或空串
+    COALESCE(`level`, -1) AS `level`, -- 主键防空，Int默认为-1或0
+    COALESCE(age, -1) AS age,        -- 主键防空
+    COALESCE(birth_year, 0) AS birth_year, -- 主键防空
+    COALESCE(vip_type, 0) AS vip_type,     -- 主键防空
     vip_type_name,
-    `status`,
+    COALESCE(`status`, 0) AS `status`,     -- 主键防空
     status_name,
-    official_type,
+    COALESCE(official_type, -1) AS official_type, -- 主键防空
     is_official,
-    theme,
-    primary_tag,
+    COALESCE(theme, '') AS theme,          -- 主键防空
+    COALESCE(primary_tag, '') AS primary_tag, -- 主键防空 (之前的报错点)
     new_account_cnt,
     dw_create_time,
     dt
 FROM dws.dws_account_registry_source_di
-WHERE dt = '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
 -- 7. 同步 dws_vip_order_source_di 到 ClickHouse
+-- 主键: order_status, plan_id, pay_method, platform, channel, sex, level, official_type, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_vip_order_source
 SELECT
-    order_status,
-    plan_id,
+    COALESCE(order_status, '') AS order_status, -- 主键防空
+    COALESCE(plan_id, '') AS plan_id,           -- 主键防空 (本次的报错点)
     plan_name,
     plan_duration_days,
-    pay_method,
-    platform,
-    channel,
+    COALESCE(pay_method, '') AS pay_method,     -- 主键防空
+    COALESCE(platform, '') AS platform,         -- 主键防空
+    COALESCE(channel, '') AS channel,           -- 主键防空
     from_page,
     current_vip_type,
     coupon_id,
     error_code,
     cancel_stage,
-    sex,
-    age,
-    birth_year,
-    `level`,
-    official_type,
+    COALESCE(sex, 'unknown') AS sex,            -- 主键防空
+    age, -- age 不在表3的主键中，可以不处理，但为了稳健也可处理
+    birth_year, -- 同上
+    COALESCE(`level`, -1) AS `level`,           -- 主键防空
+    COALESCE(official_type, -1) AS official_type, -- 主键防空
     is_official,
     primary_tag,
     account_age_days,
@@ -237,4 +240,4 @@ SELECT
     dw_create_time,
     dt
 FROM dws.dws_vip_order_source_di
-WHERE dt = '${bizdate}';
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');

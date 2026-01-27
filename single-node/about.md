@@ -21,7 +21,12 @@ docker exec -u root -it flink-taskmanager chmod -R 777 /opt/hive/data/warehouse
 
 streampark节点需要安装flink_1.17.2
 
-dolphinscheduler节点需要安装flink_1.17.2，配置FLINK_HOME，并替换`${FLINK_HOME}/conf/flink-conf.yaml`
+dolphinscheduler节点需要安装flink_1.17.2，配置FLINK_HOME
+
+flink-jobmanager节点的`${FLINK_HOME}/conf`需要复制到dolphinscheduler节点，并在conf/flink-conf.yaml里面修正/取消注释如下变量
+<listen_host>::</listen_host>
+rest.port: 8081
+rest.address: flink-jobmanager
 
 将flink-pom.xml里列出的jar包全部下载，复制到flink-jobmanager、flink-taskmanager、streampark、dolphinscheduler节点的`${FLINK_HOME}/lib/`下
 
