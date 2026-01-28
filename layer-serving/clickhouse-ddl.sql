@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_from_event_di
 
     -- ETL信息
     dw_create_time              DateTime64(3)   COMMENT '数仓创建时间',
-    dt                          String          COMMENT '日期分区'
+    dt                          String          COMMENT '日期分区，精确到小时'
 )
 ENGINE = ReplacingMergeTree(dw_create_time)
 PARTITION BY dt

@@ -127,20 +127,20 @@ SELECT
     COALESCE(app_context.app_version, 'unknown')            AS app_version,
     COALESCE(device_info.network, 'unknown')                AS network,
 
-    -- 聚合指标（当天累计值）
+    -- 聚合指标（小时内累计值）
     COUNT(*)                                                AS new_account_cnt,
     COUNT(DISTINCT device_info.device_id)                   AS new_device_cnt,
 
     -- ETL信息
     CURRENT_TIMESTAMP                                       AS dw_create_time,
-    DATE_FORMAT(window_end, 'yyyy-MM-dd')                   AS dt
+    DATE_FORMAT(window_start, 'yyyy-MM-dd HH:00:00')        AS dt  -- 小时开始时间
 
 FROM TABLE(
     CUMULATE(
         TABLE kafka_event_account,
         DESCRIPTOR(event_time),
-        INTERVAL '5' SECOND,
-        INTERVAL '1' DAY
+        INTERVAL '5' SECOND,                                -- 每5秒触发一次
+        INTERVAL '1' HOUR                                   -- 最大窗口1小时
     )
 )
 WHERE event_id = 'account_register'
