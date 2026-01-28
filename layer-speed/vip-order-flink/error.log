@@ -1,0 +1,17 @@
+org.apache.hadoop.hbase.DoNotRetryIOException: java.lang.IncompatibleClassChangeError: Class org.apache.hadoop.hbase.codec.KeyValueCodec$KeyValueDecoder does not implement the requested interface org.apache.hadoop.hbase.CellScanner
+	at org.apache.hadoop.hbase.client.RpcRetryingCallerImpl.translateException(RpcRetryingCallerImpl.java:221)
+	at org.apache.hadoop.hbase.client.RpcRetryingCallerImpl.callWithoutRetries(RpcRetryingCallerImpl.java:194)
+	at org.apache.hadoop.hbase.client.ScannerCallableWithReplicas$RetryingRPC.call(ScannerCallableWithReplicas.java:396)
+	at org.apache.hadoop.hbase.client.ScannerCallableWithReplicas$RetryingRPC.call(ScannerCallableWithReplicas.java:370)
+	at org.apache.hadoop.hbase.client.RpcRetryingCallerImpl.callWithRetries(RpcRetryingCallerImpl.java:107)
+	at org.apache.hadoop.hbase.client.ResultBoundedCompletionService$QueueingFuture.run(ResultBoundedCompletionService.java:80)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+	at java.base/java.lang.Thread.run(Unknown Source)
+Caused by: java.lang.IncompatibleClassChangeError: Class org.apache.hadoop.hbase.codec.KeyValueCodec$KeyValueDecoder does not implement the requested interface org.apache.hadoop.hbase.CellScanner
+	at org.apache.hadoop.hbase.shaded.protobuf.ResponseConverter.getResults(ResponseConverter.java:389)
+	at org.apache.hadoop.hbase.client.ScannerCallable.rpcCall(ScannerCallable.java:252)
+	at org.apache.hadoop.hbase.client.ScannerCallable.rpcCall(ScannerCallable.java:58)
+	at org.apache.hadoop.hbase.client.RegionServerCallable.call(RegionServerCallable.java:127)
+	at org.apache.hadoop.hbase.client.RpcRetryingCallerImpl.callWithoutRetries(RpcRetryingCallerImpl.java:192)
+	... 7 more
