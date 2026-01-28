@@ -888,7 +888,40 @@
 
 ### 8. app_event_vip（VIP购买埋点）
 
-附加字段：`order_no`（订单号，部分事件）
+附加字段：`order_no`（订单号，浏览和选择套餐时为空）
+
+> **注意**：所有 VIP 事件的 `properties` 结构完全一致，包含所有字段。部分字段仅在特定事件发生时有实际值，其他情况为空值或默认值。
+
+#### properties 完整字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `event_type` | string | 事件类型标识 |
+| `current_vip_type` | int | 用户当前VIP类型（0=无，1=月度，2=年度） |
+| `current_vip_expire` | int | 用户当前VIP到期时间戳 |
+| `from` | string | 来源页面 |
+| `page_load_ms` | int | 页面加载耗时（毫秒） |
+| `is_promotion_period` | bool | 是否促销期 |
+| `plan_id` | string | 套餐ID |
+| `plan_name` | string | 套餐名称 |
+| `plan_price` | int | 套餐价格（分） |
+| `plan_duration_days` | int | 套餐时长（天） |
+| `has_coupon` | bool | 是否有优惠券 |
+| `order_no` | string | 订单号（浏览/选择套餐时为空） |
+| `original_price` | int | 原价（分） |
+| `final_price` | int | 实付金额（分） |
+| `coupon_id` | string | 优惠券ID |
+| `discount_amount` | int | 折扣金额（分） |
+| `pay_method` | string | 支付方式 |
+| `amount` | int | 支付金额（分） |
+| `pay_duration_sec` | int | 支付耗时（秒） |
+| `new_vip_expire` | int | 新VIP到期时间戳 |
+| `error_code` | string | 错误码（仅支付失败时有值） |
+| `error_msg` | string | 错误信息（仅支付失败时有值） |
+| `retry_count` | int | 重试次数（仅支付失败时有值） |
+| `cancel_stage` | string | 取消阶段（仅取消支付时有值） |
+| `time_on_pay_page_sec` | int | 支付页停留时长（秒） |
+| `previous_auto_renew` | bool | 之前的自动续费状态 |
 
 #### vip_page_view（浏览VIP页）
 ```json
@@ -912,7 +945,27 @@
     "current_vip_expire": 0,
     "from": "home_banner",
     "page_load_ms": 500,
-    "is_promotion_period": true
+    "is_promotion_period": true,
+    "plan_id": "yearly",
+    "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": false,
+    "order_no": "",
+    "original_price": 23800,
+    "final_price": 23800,
+    "coupon_id": "",
+    "discount_amount": 0,
+    "pay_method": "alipay",
+    "amount": 23800,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -926,11 +979,29 @@
     "event_type": "vip_select_plan",
     "current_vip_type": 0,
     "current_vip_expire": 0,
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
     "plan_id": "yearly",
     "plan_name": "大会员年卡",
     "plan_price": 23800,
     "plan_duration_days": 366,
-    "has_coupon": true
+    "has_coupon": true,
+    "order_no": "",
+    "original_price": 23800,
+    "final_price": 23300,
+    "coupon_id": "CPN12345",
+    "discount_amount": 500,
+    "pay_method": "alipay",
+    "amount": 23300,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -944,13 +1015,29 @@
     "event_type": "vip_create_order",
     "current_vip_type": 0,
     "current_vip_expire": 0,
-    "order_no": "BP170598720012345",
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
     "plan_id": "yearly",
     "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": true,
+    "order_no": "BP170598720012345",
     "original_price": 23800,
-    "final_price": 19040,
+    "final_price": 23300,
     "coupon_id": "CPN12345",
-    "discount_amount": 476
+    "discount_amount": 500,
+    "pay_method": "alipay",
+    "amount": 23300,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -964,9 +1051,29 @@
     "event_type": "vip_pay_start",
     "current_vip_type": 0,
     "current_vip_expire": 0,
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
+    "plan_id": "yearly",
+    "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": true,
     "order_no": "BP170598720012345",
+    "original_price": 23800,
+    "final_price": 23300,
+    "coupon_id": "CPN12345",
+    "discount_amount": 500,
     "pay_method": "alipay",
-    "amount": 19040
+    "amount": 23300,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -980,11 +1087,29 @@
     "event_type": "vip_pay_success",
     "current_vip_type": 0,
     "current_vip_expire": 0,
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
+    "plan_id": "yearly",
+    "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": true,
     "order_no": "BP170598720012345",
+    "original_price": 23800,
+    "final_price": 23300,
+    "coupon_id": "CPN12345",
+    "discount_amount": 500,
     "pay_method": "alipay",
-    "amount": 19040,
+    "amount": 23300,
     "pay_duration_sec": 30,
-    "new_vip_expire": 1737609600
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -998,11 +1123,29 @@
     "event_type": "vip_pay_fail",
     "current_vip_type": 0,
     "current_vip_expire": 0,
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
+    "plan_id": "yearly",
+    "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": true,
     "order_no": "BP170598720012345",
+    "original_price": 23800,
+    "final_price": 23300,
+    "coupon_id": "CPN12345",
+    "discount_amount": 500,
     "pay_method": "wechat",
+    "amount": 23300,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
     "error_code": "INSUFFICIENT_BALANCE",
     "error_msg": "支付失败",
-    "retry_count": 1
+    "retry_count": 1,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -1016,9 +1159,29 @@
     "event_type": "vip_pay_cancel",
     "current_vip_type": 0,
     "current_vip_expire": 0,
+    "from": "home_banner",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
+    "plan_id": "yearly",
+    "plan_name": "大会员年卡",
+    "plan_price": 23800,
+    "plan_duration_days": 366,
+    "has_coupon": true,
     "order_no": "BP170598720012345",
+    "original_price": 23800,
+    "final_price": 23300,
+    "coupon_id": "CPN12345",
+    "discount_amount": 500,
+    "pay_method": "alipay",
+    "amount": 23300,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1737609600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
     "cancel_stage": "during_pay",
-    "time_on_pay_page_sec": 60
+    "time_on_pay_page_sec": 60,
+    "previous_auto_renew": false
   }
 }
 ```
@@ -1027,13 +1190,33 @@
 ```json
 {
   "event_id": "vip_auto_renew_on",
-  "order_no": "",
+  "order_no": "BP170598720012345",
   "properties": {
     "event_type": "vip_auto_renew_on",
     "current_vip_type": 2,
     "current_vip_expire": 1737609600,
-    "plan_id": "auto_yearly",
     "from": "vip_page",
+    "page_load_ms": 500,
+    "is_promotion_period": true,
+    "plan_id": "auto_yearly",
+    "plan_name": "连续包年大会员",
+    "plan_price": 17800,
+    "plan_duration_days": 366,
+    "has_coupon": false,
+    "order_no": "BP170598720012345",
+    "original_price": 17800,
+    "final_price": 17800,
+    "coupon_id": "",
+    "discount_amount": 0,
+    "pay_method": "alipay",
+    "amount": 17800,
+    "pay_duration_sec": 30,
+    "new_vip_expire": 1769145600,
+    "error_code": "",
+    "error_msg": "",
+    "retry_count": 0,
+    "cancel_stage": "",
+    "time_on_pay_page_sec": 60,
     "previous_auto_renew": false
   }
 }

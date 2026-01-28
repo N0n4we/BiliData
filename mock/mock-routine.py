@@ -5,7 +5,8 @@ import uuid
 import json
 import socket
 import struct
-from decimal import Decimal
+import signal
+import sys
 from typing import Dict, Any, List
 
 # ==========================================
@@ -21,11 +22,11 @@ class Constant:
     TBL_COMMENT = "app_comment"
 
     # 埋点表 - 按主题分表 (作为 Kafka Topic)
-    TBL_EVENT_ACCOUNT = "app_event_account"        # 账号相关埋点
-    TBL_EVENT_VIDEO = "app_event_video"            # 视频相关埋点
-    TBL_EVENT_SOCIAL = "app_event_social"          # 社交互动埋点
-    TBL_EVENT_COMMENT = "app_event_comment"        # 评论相关埋点
-    TBL_EVENT_VIP = "app_event_vip"                # VIP购买埋点
+    TBL_EVENT_ACCOUNT = "app_event_account"
+    TBL_EVENT_VIDEO = "app_event_video"
+    TBL_EVENT_SOCIAL = "app_event_social"
+    TBL_EVENT_COMMENT = "app_event_comment"
+    TBL_EVENT_VIP = "app_event_vip"
 
 
 # ==========================================
@@ -33,69 +34,69 @@ class Constant:
 # ==========================================
 class EventTypes:
     # 账号相关事件
-    ACCOUNT_REGISTER = "account_register"           # 账号注册
-    ACCOUNT_LOGIN = "account_login"                 # 账号登录
-    ACCOUNT_LOGOUT = "account_logout"               # 账号登出
-    ACCOUNT_UPDATE_PROFILE = "account_update_profile"  # 修改资料
-    ACCOUNT_UPDATE_AVATAR = "account_update_avatar"    # 修改头像
-    ACCOUNT_UPDATE_PASSWORD = "account_update_password" # 修改密码
-    ACCOUNT_DEACTIVATE = "account_deactivate"       # 注销账号
-    ACCOUNT_BIND_PHONE = "account_bind_phone"       # 绑定手机
-    ACCOUNT_BIND_EMAIL = "account_bind_email"       # 绑定邮箱
+    ACCOUNT_REGISTER = "account_register"
+    ACCOUNT_LOGIN = "account_login"
+    ACCOUNT_LOGOUT = "account_logout"
+    ACCOUNT_UPDATE_PROFILE = "account_update_profile"
+    ACCOUNT_UPDATE_AVATAR = "account_update_avatar"
+    ACCOUNT_UPDATE_PASSWORD = "account_update_password"
+    ACCOUNT_DEACTIVATE = "account_deactivate"
+    ACCOUNT_BIND_PHONE = "account_bind_phone"
+    ACCOUNT_BIND_EMAIL = "account_bind_email"
 
     # 视频相关事件
-    VIDEO_UPLOAD_START = "video_upload_start"       # 开始上传
-    VIDEO_UPLOAD_PROGRESS = "video_upload_progress" # 上传进度
-    VIDEO_UPLOAD_COMPLETE = "video_upload_complete" # 上传完成
-    VIDEO_UPLOAD_FAIL = "video_upload_fail"         # 上传失败
-    VIDEO_UPDATE_INFO = "video_update_info"         # 修改视频信息
-    VIDEO_DELETE = "video_delete"                   # 删除视频
-    VIDEO_SET_PRIVATE = "video_set_private"         # 设为私密
-    VIDEO_PUBLISH = "video_publish"                 # 发布/公开
-    VIDEO_VIEW = "video_view"                       # 观看视频
-    VIDEO_PLAY_HEARTBEAT = "video_play_heartbeat"   # 播放心跳
+    VIDEO_UPLOAD_START = "video_upload_start"
+    VIDEO_UPLOAD_PROGRESS = "video_upload_progress"
+    VIDEO_UPLOAD_COMPLETE = "video_upload_complete"
+    VIDEO_UPLOAD_FAIL = "video_upload_fail"
+    VIDEO_UPDATE_INFO = "video_update_info"
+    VIDEO_DELETE = "video_delete"
+    VIDEO_SET_PRIVATE = "video_set_private"
+    VIDEO_PUBLISH = "video_publish"
+    VIDEO_VIEW = "video_view"
+    VIDEO_PLAY_HEARTBEAT = "video_play_heartbeat"
 
     # 账号互动事件
-    SOCIAL_FOLLOW = "social_follow"                 # 关注
-    SOCIAL_UNFOLLOW = "social_unfollow"             # 取消关注
-    SOCIAL_BLOCK = "social_block"                   # 拉黑
-    SOCIAL_UNBLOCK = "social_unblock"               # 取消拉黑
-    SOCIAL_WHISPER = "social_whisper"               # 私信
-    SOCIAL_REPORT_USER = "social_report_user"       # 举报用户
+    SOCIAL_FOLLOW = "social_follow"
+    SOCIAL_UNFOLLOW = "social_unfollow"
+    SOCIAL_BLOCK = "social_block"
+    SOCIAL_UNBLOCK = "social_unblock"
+    SOCIAL_WHISPER = "social_whisper"
+    SOCIAL_REPORT_USER = "social_report_user"
 
     # 视频互动事件
-    VIDEO_LIKE = "video_like"                       # 点赞
-    VIDEO_UNLIKE = "video_unlike"                   # 取消点赞
-    VIDEO_COIN = "video_coin"                       # 投币
-    VIDEO_FAVORITE = "video_favorite"               # 收藏
-    VIDEO_UNFAVORITE = "video_unfavorite"           # 取消收藏
-    VIDEO_SHARE = "video_share"                     # 分享
-    VIDEO_DANMAKU = "video_danmaku"                 # 发送弹幕
-    VIDEO_TRIPLE = "video_triple"                   # 一键三连
+    VIDEO_LIKE = "video_like"
+    VIDEO_UNLIKE = "video_unlike"
+    VIDEO_COIN = "video_coin"
+    VIDEO_FAVORITE = "video_favorite"
+    VIDEO_UNFAVORITE = "video_unfavorite"
+    VIDEO_SHARE = "video_share"
+    VIDEO_DANMAKU = "video_danmaku"
+    VIDEO_TRIPLE = "video_triple"
 
     # 评论相关事件
-    COMMENT_CREATE = "comment_create"               # 发表评论
-    COMMENT_REPLY = "comment_reply"                 # 回复评论
-    COMMENT_UPDATE = "comment_update"               # 修改评论
-    COMMENT_DELETE = "comment_delete"               # 删除评论
-    COMMENT_REPORT = "comment_report"               # 举报评论
+    COMMENT_CREATE = "comment_create"
+    COMMENT_REPLY = "comment_reply"
+    COMMENT_UPDATE = "comment_update"
+    COMMENT_DELETE = "comment_delete"
+    COMMENT_REPORT = "comment_report"
 
     # 评论互动事件
-    COMMENT_LIKE = "comment_like"                   # 评论点赞
-    COMMENT_UNLIKE = "comment_unlike"               # 取消评论点赞
-    COMMENT_DISLIKE = "comment_dislike"             # 评论点踩
-    COMMENT_UNDISLIKE = "comment_undislike"         # 取消评论点踩
+    COMMENT_LIKE = "comment_like"
+    COMMENT_UNLIKE = "comment_unlike"
+    COMMENT_DISLIKE = "comment_dislike"
+    COMMENT_UNDISLIKE = "comment_undislike"
 
     # VIP相关事件
-    VIP_PAGE_VIEW = "vip_page_view"                 # 浏览VIP页面
-    VIP_SELECT_PLAN = "vip_select_plan"             # 选择套餐
-    VIP_CREATE_ORDER = "vip_create_order"           # 创建订单
-    VIP_PAY_START = "vip_pay_start"                 # 开始支付
-    VIP_PAY_SUCCESS = "vip_pay_success"             # 支付成功
-    VIP_PAY_FAIL = "vip_pay_fail"                   # 支付失败
-    VIP_PAY_CANCEL = "vip_pay_cancel"               # 取消支付
-    VIP_AUTO_RENEW_ON = "vip_auto_renew_on"         # 开启自动续费
-    VIP_AUTO_RENEW_OFF = "vip_auto_renew_off"       # 关闭自动续费
+    VIP_PAGE_VIEW = "vip_page_view"
+    VIP_SELECT_PLAN = "vip_select_plan"
+    VIP_CREATE_ORDER = "vip_create_order"
+    VIP_PAY_START = "vip_pay_start"
+    VIP_PAY_SUCCESS = "vip_pay_success"
+    VIP_PAY_FAIL = "vip_pay_fail"
+    VIP_PAY_CANCEL = "vip_pay_cancel"
+    VIP_AUTO_RENEW_ON = "vip_auto_renew_on"
+    VIP_AUTO_RENEW_OFF = "vip_auto_renew_off"
 
 
 # ==========================================
@@ -212,7 +213,30 @@ class MockDataUtil:
 
 
 # ==========================================
-# 4. 数据生成器 (Kafka)
+# 4. 运行时配置
+# ==========================================
+class RoutineConfig:
+    # 发送间隔（秒）
+    INTERVAL_SECONDS = 1.0
+
+    # 每轮生成的数据量
+    BATCH_USERS = 2
+    BATCH_VIDEOS = 1
+    BATCH_COMMENTS = 3
+    BATCH_ACCOUNT_EVENTS = 5
+    BATCH_VIDEO_EVENTS = 20
+    BATCH_SOCIAL_EVENTS = 8
+    BATCH_COMMENT_EVENTS = 10
+    BATCH_VIP_EVENTS = 4
+
+    # 数据池大小限制（防止内存无限增长）
+    MAX_MIDS = 1000
+    MAX_BVIDS = 500
+    MAX_RPIDS = 2000
+
+
+# ==========================================
+# 5. 数据生成器 (Kafka)
 # ==========================================
 class ODSGenerator:
     def __init__(self, producer: KafkaProducer):
@@ -241,6 +265,15 @@ class ODSGenerator:
             "device_info": MockDataUtil.generate_device_info(),
             "app_context": MockDataUtil.generate_app_context()
         }
+
+    def _trim_pools(self):
+        """限制数据池大小"""
+        if len(self.mids) > RoutineConfig.MAX_MIDS:
+            self.mids = self.mids[-RoutineConfig.MAX_MIDS:]
+        if len(self.bvids) > RoutineConfig.MAX_BVIDS:
+            self.bvids = self.bvids[-RoutineConfig.MAX_BVIDS:]
+        if len(self.rpids) > RoutineConfig.MAX_RPIDS:
+            self.rpids = self.rpids[-RoutineConfig.MAX_RPIDS:]
 
     # ==========================================
     # 基础数据生成
@@ -284,12 +317,13 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_USER, data)
-        print(f"Generated {count} users -> topic: {Constant.TBL_USER}")
+        self._trim_pools()
+        return count
 
     def gen_videos(self, count: int):
         """生成基础视频数据"""
         if not self.mids:
-            return
+            return 0
 
         data = []
         titles = ["【原创】", "【转载】", "【自制】", "【搬运】", "【4K】", "【教程】", "【测评】", "【vlog】"]
@@ -346,12 +380,13 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_VIDEO, data)
-        print(f"Generated {count} videos -> topic: {Constant.TBL_VIDEO}")
+        self._trim_pools()
+        return count
 
     def gen_comments(self, count: int):
         """生成基础评论数据"""
         if not self.mids or not self.bvids:
-            return
+            return 0
 
         data = []
         for _ in range(count):
@@ -380,15 +415,16 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_COMMENT, data)
-        print(f"Generated {count} comments -> topic: {Constant.TBL_COMMENT}")
+        self._trim_pools()
+        return count
 
     # ==========================================
     # 账号相关埋点生成
     # ==========================================
     def gen_account_events(self, count: int):
-        """生成账号相关埋点: 创建、修改、删除"""
+        """生成账号相关埋点"""
         if not self.mids:
-            return
+            return 0
 
         events = [
             (EventTypes.ACCOUNT_REGISTER, 10),
@@ -461,15 +497,15 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_EVENT_ACCOUNT, data)
-        print(f"Generated {count} account events -> topic: {Constant.TBL_EVENT_ACCOUNT}")
+        return count
 
     # ==========================================
     # 视频相关埋点生成
     # ==========================================
     def gen_video_events(self, count: int):
-        """生成视频相关埋点: 上传、修改、删除、观看等"""
+        """生成视频相关埋点"""
         if not self.mids:
-            return
+            return 0
 
         events = [
             (EventTypes.VIDEO_VIEW, 30),
@@ -616,15 +652,15 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_EVENT_VIDEO, data)
-        print(f"Generated {count} video events -> topic: {Constant.TBL_EVENT_VIDEO}")
+        return count
 
     # ==========================================
     # 社交互动埋点生成
     # ==========================================
     def gen_social_events(self, count: int):
-        """生成账号互动埋点: 关注、拉黑等"""
+        """生成账号互动埋点"""
         if not self.mids or len(self.mids) < 2:
-            return
+            return 0
 
         events = [
             (EventTypes.SOCIAL_FOLLOW, 35),
@@ -686,7 +722,7 @@ class ODSGenerator:
                 "client_ts": base["client_ts"],
                 "server_ts": base["server_ts"],
                 "url_path": f"/space/{target_mid}",
-                "referer": random.choice(["https://www.bilibili.com/", f"app://space/{target_mid}", f"app://video/BV1xxx"]),
+                "referer": random.choice(["https://www.bilibili.com/", f"app://space/{target_mid}", "app://video/BV1xxx"]),
                 "ua": base["ua"],
                 "ip": base["ip"],
                 "device_info": base["device_info"],
@@ -695,15 +731,15 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_EVENT_SOCIAL, data)
-        print(f"Generated {count} social events -> topic: {Constant.TBL_EVENT_SOCIAL}")
+        return count
 
     # ==========================================
     # 评论相关埋点生成
     # ==========================================
     def gen_comment_events(self, count: int):
-        """生成评论相关埋点: 创建、修改、删除、互动"""
+        """生成评论相关埋点"""
         if not self.mids or not self.bvids:
-            return
+            return 0
 
         events = [
             (EventTypes.COMMENT_CREATE, 25),
@@ -803,7 +839,7 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_EVENT_COMMENT, data)
-        print(f"Generated {count} comment events -> topic: {Constant.TBL_EVENT_COMMENT}")
+        return count
 
     # ==========================================
     # VIP购买埋点生成
@@ -811,7 +847,7 @@ class ODSGenerator:
     def gen_vip_events(self, count: int):
         """生成VIP购买相关埋点"""
         if not self.mids:
-            return
+            return 0
 
         events = [
             (EventTypes.VIP_PAGE_VIEW, 30),
@@ -841,38 +877,30 @@ class ODSGenerator:
             # 完整的 properties 字段（所有事件结构一致）
             props = {
                 "event_type": event_type,
-                # 公共字段
                 "current_vip_type": random.choice([0, 1, 2]),
                 "current_vip_expire": int(time.time()) + random.randint(-86400*30, 86400*365) if random.random() > 0.5 else 0,
-                # 页面浏览相关
                 "from": random.choice(["home_banner", "video_tip", "space", "settings", "push", "search", "vip_page", "order_complete"]),
                 "page_load_ms": random.randint(100, 3000),
                 "is_promotion_period": random.choice([True, False]),
-                # 套餐相关
                 "plan_id": plan["id"],
                 "plan_name": plan["name"],
                 "plan_price": plan["price"],
                 "plan_duration_days": plan["duration_days"],
                 "has_coupon": has_coupon,
-                # 订单相关
                 "order_no": order_no,
                 "original_price": plan["price"],
                 "final_price": final_price,
                 "coupon_id": coupon_id,
                 "discount_amount": discount_amount,
-                # 支付相关
                 "pay_method": pay_method,
                 "amount": final_price,
                 "pay_duration_sec": random.randint(5, 120),
                 "new_vip_expire": int(time.time()) + plan["duration_days"] * 86400,
-                # 支付失败相关（仅 VIP_PAY_FAIL 时有实际值）
                 "error_code": "",
                 "error_msg": "",
                 "retry_count": 0,
-                # 取消支付相关（仅 VIP_PAY_CANCEL 时有实际值）
                 "cancel_stage": "",
                 "time_on_pay_page_sec": random.randint(1, 300),
-                # 自动续费相关
                 "previous_auto_renew": False
             }
 
@@ -904,49 +932,127 @@ class ODSGenerator:
             })
 
         self._send_to_kafka(Constant.TBL_EVENT_VIP, data)
-        print(f"Generated {count} VIP events -> topic: {Constant.TBL_EVENT_VIP}")
+        return count
 
 
 # ==========================================
-# 5. 主入口
+# 6. 主入口 - 持续运行
 # ==========================================
+class MockRoutine:
+    def __init__(self):
+        self.running = True
+        self.producer = None
+        self.generator = None
+        self.total_sent = {
+            "users": 0,
+            "videos": 0,
+            "comments": 0,
+            "account_events": 0,
+            "video_events": 0,
+            "social_events": 0,
+            "comment_events": 0,
+            "vip_events": 0
+        }
+
+    def signal_handler(self, signum, frame):
+        """处理退出信号"""
+        print("\n\nReceived stop signal. Shutting down gracefully...")
+        self.running = False
+
+    def print_stats(self, round_num: int, round_stats: dict):
+        """打印统计信息"""
+        print(f"\n[Round {round_num}] Sent this round:")
+        print(f"  Users: {round_stats['users']}, Videos: {round_stats['videos']}, Comments: {round_stats['comments']}")
+        print(f"  Account Events: {round_stats['account_events']}, Video Events: {round_stats['video_events']}")
+        print(f"  Social Events: {round_stats['social_events']}, Comment Events: {round_stats['comment_events']}")
+        print(f"  VIP Events: {round_stats['vip_events']}")
+        print(f"  Data pool: {len(self.generator.mids)} mids, {len(self.generator.bvids)} bvids, {len(self.generator.rpids)} rpids")
+
+    def run(self):
+        """主运行循环"""
+        # 注册信号处理
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+
+        try:
+            # 连接 Kafka
+            self.producer = KafkaProducer(
+                bootstrap_servers=Constant.KAFKA_BOOTSTRAP_SERVERS,
+                value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8')
+            )
+            print("Connected to Kafka.")
+            print(f"Interval: {RoutineConfig.INTERVAL_SECONDS}s")
+            print("Press Ctrl+C to stop.\n")
+
+            self.generator = ODSGenerator(self.producer)
+
+            # 初始化一些基础数据
+            print("Initializing base data...")
+            self.generator.gen_users(50)
+            self.generator.gen_videos(20)
+            self.generator.gen_comments(50)
+            print("Base data initialized.\n")
+
+            round_num = 0
+            while self.running:
+                round_num += 1
+                round_stats = {}
+
+                # 生成基础数据
+                round_stats["users"] = self.generator.gen_users(RoutineConfig.BATCH_USERS)
+                round_stats["videos"] = self.generator.gen_videos(RoutineConfig.BATCH_VIDEOS)
+                round_stats["comments"] = self.generator.gen_comments(RoutineConfig.BATCH_COMMENTS)
+
+                # 生成埋点数据
+                round_stats["account_events"] = self.generator.gen_account_events(RoutineConfig.BATCH_ACCOUNT_EVENTS)
+                round_stats["video_events"] = self.generator.gen_video_events(RoutineConfig.BATCH_VIDEO_EVENTS)
+                round_stats["social_events"] = self.generator.gen_social_events(RoutineConfig.BATCH_SOCIAL_EVENTS)
+                round_stats["comment_events"] = self.generator.gen_comment_events(RoutineConfig.BATCH_COMMENT_EVENTS)
+                round_stats["vip_events"] = self.generator.gen_vip_events(RoutineConfig.BATCH_VIP_EVENTS)
+
+                # 更新总计
+                for key in round_stats:
+                    self.total_sent[key] += round_stats[key]
+
+                # 打印统计
+                self.print_stats(round_num, round_stats)
+
+                # 等待下一轮
+                if self.running:
+                    time.sleep(RoutineConfig.INTERVAL_SECONDS)
+
+        except Exception as e:
+            print(f"\nError: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # 打印总计
+            print("\n" + "=" * 50)
+            print("Total messages sent:")
+            for key, value in self.total_sent.items():
+                print(f"  {key}: {value}")
+            print("=" * 50)
+
+            # 关闭连接
+            if self.producer:
+                self.producer.close()
+                print("\nKafka connection closed.")
+
+
 if __name__ == "__main__":
-    try:
-        producer = KafkaProducer(
-            bootstrap_servers=Constant.KAFKA_BOOTSTRAP_SERVERS,
-            value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8')
-        )
-        print("Connected to Kafka.")
+    print("=" * 50)
+    print("Mock Data Routine - Continuous Kafka Producer")
+    print("=" * 50)
+    print(f"\nTopics:")
+    print(f"  - {Constant.TBL_USER} (用户数据)")
+    print(f"  - {Constant.TBL_VIDEO} (视频数据)")
+    print(f"  - {Constant.TBL_COMMENT} (评论数据)")
+    print(f"  - {Constant.TBL_EVENT_ACCOUNT} (账号埋点)")
+    print(f"  - {Constant.TBL_EVENT_VIDEO} (视频埋点)")
+    print(f"  - {Constant.TBL_EVENT_SOCIAL} (社交埋点)")
+    print(f"  - {Constant.TBL_EVENT_COMMENT} (评论埋点)")
+    print(f"  - {Constant.TBL_EVENT_VIP} (VIP埋点)")
+    print()
 
-        # 生成数据
-        gen = ODSGenerator(producer)
-
-        # 基础数据
-        gen.gen_users(200)
-        gen.gen_videos(100)
-        gen.gen_comments(300)
-
-        # 五类埋点数据
-        print("\n--- Generating Event Tracking Data ---")
-        gen.gen_account_events(500)      # 1. 账号相关 (创建/修改/删除)
-        gen.gen_video_events(2000)       # 2. 视频相关 (上传/修改/删除) + 4. 视频互动 (点赞/投币/收藏)
-        gen.gen_social_events(800)       # 3. 账号互动 (关注/拉黑)
-        gen.gen_comment_events(1000)     # 5. 评论相关 (创建/修改/删除) + 6. 评论互动 (点赞/点踩)
-        gen.gen_vip_events(400)          # 7. VIP购买
-
-        producer.close()
-        print("\n=== All Done! ===")
-        print("Generated topics:")
-        print(f"  - {Constant.TBL_USER} (用户数据)")
-        print(f"  - {Constant.TBL_VIDEO} (视频数据)")
-        print(f"  - {Constant.TBL_COMMENT} (评论数据)")
-        print(f"  - {Constant.TBL_EVENT_ACCOUNT} (账号埋点)")
-        print(f"  - {Constant.TBL_EVENT_VIDEO} (视频埋点)")
-        print(f"  - {Constant.TBL_EVENT_SOCIAL} (社交埋点)")
-        print(f"  - {Constant.TBL_EVENT_COMMENT} (评论埋点)")
-        print(f"  - {Constant.TBL_EVENT_VIP} (VIP埋点)")
-
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+    routine = MockRoutine()
+    routine.run()
