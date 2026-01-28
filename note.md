@@ -51,3 +51,4 @@
   - 实时链路DimAccount没有实时更新用户关系列表(following_list)，只实时更新计数(following_chg)
   - 实时链路的dws作业考虑性能问题未进行look-up join，会比离线dws少很多维度
   - dolphin scheduler对flinksql的变量解析有问题，需要每日手动终端运行或crontab调度
+  - Java的hbase-client可能有问题（即便版本号对上）
