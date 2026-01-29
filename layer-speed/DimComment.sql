@@ -1,13 +1,3 @@
--- ============================================================
--- DimComment FlinkSQL - 实时消费Kafka写入HBase
--- 数据源：
---   1. app_comment - 评论基础数据
---   2. app_event_comment - 评论行为埋点（点赞/点踩/回复等）
--- hbase_dim_comment 是累计值
--- hbase_dim_comment_incr 是每日增量
--- ============================================================
-
--- 1. 创建 Kafka Source 表 - 评论基础数据
 DROP TABLE IF EXISTS kafka_comment;
 CREATE TABLE kafka_comment (
     rpid                BIGINT,
@@ -35,7 +25,6 @@ CREATE TABLE kafka_comment (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 Kafka Source 表 - 评论行为埋点
 DROP TABLE IF EXISTS kafka_event_comment;
 CREATE TABLE kafka_event_comment (
     event_id            STRING,
@@ -62,7 +51,6 @@ CREATE TABLE kafka_event_comment (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 3. 创建 HBase Sink 表 - 评论基础信息
 DROP TABLE IF EXISTS hbase_dim_comment;
 CREATE TABLE hbase_dim_comment (
     rowkey STRING,
@@ -89,11 +77,10 @@ CREATE TABLE hbase_dim_comment (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
     'zookeeper.quorum' = 'hbase-master:2181',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
--- 4. 创建 HBase Sink 表 - 评论统计增量
 DROP TABLE IF EXISTS hbase_dim_comment_incr;
 CREATE TABLE hbase_dim_comment_incr (
     rowkey STRING,
@@ -107,13 +94,9 @@ CREATE TABLE hbase_dim_comment_incr (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
     'zookeeper.quorum' = 'hbase-master:2181',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
-
--- ============================================================
--- 5. 插入评论基础数据
--- ============================================================
 
 INSERT INTO hbase_dim_comment
 SELECT
@@ -138,10 +121,6 @@ SELECT
     )
 FROM kafka_comment
 WHERE rpid IS NOT NULL AND oid IS NOT NULL;
-
--- ============================================================
--- 6. 实时聚合评论行为，计算统计增量
--- ============================================================
 
 -- 创建一个视图，将 comment_reply 事件的 rpid 替换为 parent_rpid，其他事件保持原 rpid
 CREATE TEMPORARY VIEW normalized_events AS

@@ -1,26 +1,5 @@
--- ============================================================
--- DwsVipOrderSource FlinkSQL - 实时消费Kafka写入ClickHouse
--- 数据源：
---   1. app_event_vip - VIP购买埋点（订单创建/支付成功/支付失败/取消支付等）
--- 写入：dws_vip_order_source_di
---
--- 处理语义：
---   以订单维度+用户维度为粒度聚合VIP订单统计数据
---   注：实时层不lookup维度表，用户维度字段填占位符，由离线层T+1覆盖补全
---   使用CUMULATE窗口实现天内累加，每分钟输出当天累计值
---
--- 事件类型与订单状态映射：
---   vip_create_order -> created
---   vip_pay_start    -> paying
---   vip_pay_success  -> success
---   vip_pay_fail     -> fail
---   vip_pay_cancel   -> cancel
--- ============================================================
-
--- 设置时区，确保CUMULATE窗口从北京时间00:00开始
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
--- 1. 创建 Kafka Source 表 - VIP购买埋点
 DROP TABLE IF EXISTS kafka_event_vip;
 CREATE TABLE kafka_event_vip (
     event_id            STRING,
@@ -76,8 +55,6 @@ CREATE TABLE kafka_event_vip (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 ClickHouse Sink 表 - VIP订单来源分析表
--- 字段与batch层/ClickHouse DDL保持一致，用户维度字段填占位符
 DROP TABLE IF EXISTS clickhouse_dws_vip_order_source;
 CREATE TABLE clickhouse_dws_vip_order_source (
     -- 订单维度
@@ -123,20 +100,9 @@ CREATE TABLE clickhouse_dws_vip_order_source (
     'table-name' = 'dws_vip_order_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
-
--- ============================================================
--- 3. 实时聚合VIP订单数据，按订单维度汇总
--- 使用CUMULATE窗口，每5秒输出当天从00:00到当前的累计值
--- 处理语义：
---   - 按订单维度聚合VIP订单统计
---   - 用户维度字段填占位符，由离线层T+1覆盖补全
---   - 事件类型映射为订单状态
---   - 金额单位为分，与batch层保持一致
---   - plan_duration_days 只在 vip_select_plan 事件中有，订单事件填0
--- ============================================================
 
 INSERT INTO clickhouse_dws_vip_order_source
 SELECT
@@ -195,7 +161,7 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_vip,
         DESCRIPTOR(event_time),
-        INTERVAL '5' SECOND,
+        INTERVAL '15' SECOND,
         INTERVAL '1' DAY
     )
 )

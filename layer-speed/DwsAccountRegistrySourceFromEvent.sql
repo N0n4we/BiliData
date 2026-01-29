@@ -1,19 +1,5 @@
--- ============================================================
--- DwsAccountRegistrySourceFromEvent FlinkSQL - 实时消费Kafka写入ClickHouse
--- 数据源：
---   1. app_event_account - 账号埋点（account_register注册事件）
--- 写入：dws_account_registry_source_from_event_di
---
--- 处理语义：
---   从埋点事件中提取注册来源信息，按多维度聚合统计新注册账号
---   维度来源于埋点自带的app_context、device_info、properties字段
---   使用CUMULATE窗口实现天内累加，每分钟输出当天累计值
--- ============================================================
-
--- 设置时区，确保CUMULATE窗口从北京时间00:00开始
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
--- 1. 创建 Kafka Source 表 - 账号埋点
 DROP TABLE IF EXISTS kafka_event_account;
 CREATE TABLE kafka_event_account (
     event_id            STRING,
@@ -76,7 +62,6 @@ CREATE TABLE kafka_event_account (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 ClickHouse Sink 表 - 每日新注册账号来源分析表（基于埋点事件）
 DROP TABLE IF EXISTS clickhouse_dws_account_registry_source_from_event;
 CREATE TABLE clickhouse_dws_account_registry_source_from_event (
     -- 来源维度（从埋点提取）
@@ -103,17 +88,9 @@ CREATE TABLE clickhouse_dws_account_registry_source_from_event (
     'table-name' = 'dws_account_registry_source_from_event_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
-
--- ============================================================
--- 3. 实时聚合新注册账号，按来源维度汇总
--- 使用CUMULATE窗口，每1分钟输出当天从00:00到当前的累计值
--- 处理语义：
---   - 统计新注册账号（account_register事件）
---   - 按埋点自带的来源信息聚合
--- ============================================================
 
 INSERT INTO clickhouse_dws_account_registry_source_from_event
 SELECT
@@ -139,8 +116,8 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_account,
         DESCRIPTOR(event_time),
-        INTERVAL '5' SECOND,                                -- 每5秒触发一次
-        INTERVAL '1' HOUR                                   -- 最大窗口1小时
+        INTERVAL '15' SECOND,
+        INTERVAL '1' HOUR
     )
 )
 WHERE event_id = 'account_register'

@@ -1,15 +1,3 @@
--- ============================================================
--- DimAccount FlinkSQL - 实时消费Kafka写入HBase
--- 数据源：
---   1. app_user_profile - 用户基础数据
---   2. app_event_social - 社交行为埋点（关注/取关/拉黑等）
--- 写入：dim:dim_account
---
--- 注意：实时层只写入增量变化值到 following_chg/follower_chg 字段
---       累计值 following_cnt/follower_cnt 由批处理层计算
--- ============================================================
-
--- 1. 创建 Kafka Source 表 - 用户基础数据
 DROP TABLE IF EXISTS kafka_user_profile;
 CREATE TABLE kafka_user_profile (
     mid                 BIGINT,
@@ -43,7 +31,6 @@ CREATE TABLE kafka_user_profile (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 Kafka Source 表 - 社交行为埋点
 DROP TABLE IF EXISTS kafka_event_social;
 CREATE TABLE kafka_event_social (
     event_id            STRING,
@@ -68,7 +55,6 @@ CREATE TABLE kafka_event_social (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 3. 创建 HBase Sink 表 - 用户基础信息
 DROP TABLE IF EXISTS hbase_dim_account;
 CREATE TABLE hbase_dim_account (
     rowkey STRING,
@@ -119,7 +105,9 @@ CREATE TABLE hbase_dim_account (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
-    'zookeeper.quorum' = 'hbase-master:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
 
@@ -177,7 +165,7 @@ SELECT
     ),
     ROW(
         -- 修复点：使用 CAST 将 ARRAY 转为 STRING
-        COALESCE(CAST(tags AS STRING), '[]'), 
+        COALESCE(CAST(tags AS STRING), '[]'),
         CAST(COALESCE(CARDINALITY(tags), 0) AS STRING),
         CASE
             WHEN tags IS NOT NULL AND CARDINALITY(tags) > 0
@@ -197,4 +185,3 @@ SELECT
     )
 FROM kafka_user_profile
 WHERE mid IS NOT NULL;
-

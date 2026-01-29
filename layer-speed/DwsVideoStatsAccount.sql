@@ -1,19 +1,5 @@
--- ============================================================
--- DwsVideoStatsAccount FlinkSQL - 实时消费Kafka写入ClickHouse
--- 数据源：
---   1. app_event_video - 视频行为埋点（观看/点赞/投币/收藏/分享/弹幕/三连等）
--- 写入：dws_video_stats_account_di
---
--- 处理语义：
---   以UP主mid为粒度聚合视频统计数据
---   注：实时层不lookup维度表，维度字段填null，由离线层T+1覆盖补全
---   使用CUMULATE窗口实现天内累加，每分钟输出当天累计值
--- ============================================================
-
--- 设置时区，确保CUMULATE窗口从北京时间00:00开始
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
--- 1. 创建 Kafka Source 表 - 视频行为埋点
 DROP TABLE IF EXISTS kafka_event_video;
 CREATE TABLE kafka_event_video (
     event_id            STRING,
@@ -39,8 +25,6 @@ CREATE TABLE kafka_event_video (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 ClickHouse Sink 表 - UP主视频统计汇总表
--- 字段与batch层/ClickHouse DDL保持一致，维度字段填null
 DROP TABLE IF EXISTS clickhouse_dws_video_stats_account;
 CREATE TABLE clickhouse_dws_video_stats_account (
     -- 账号维度信息（实时层填null，由离线层补全）
@@ -91,18 +75,10 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     'table-name' = 'dws_video_stats_account_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
 
--- ============================================================
--- 3. 实时聚合视频统计数据，按UP主mid汇总
--- 使用CUMULATE窗口，每1分钟输出当天从00:00到当前的累计值
--- 处理语义：
---   - 按UP主mid聚合视频行为统计
---   - 维度字段填null，由离线层T+1覆盖补全
---   - video_triple事件同时计入点赞/投币/收藏（与DimVideo.sql口径一致）
--- ============================================================
 
 INSERT INTO clickhouse_dws_video_stats_account
 SELECT
@@ -174,7 +150,7 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_video,
         DESCRIPTOR(event_time),
-        INTERVAL '5' SECOND,
+        INTERVAL '15' SECOND,
         INTERVAL '1' DAY
     )
 )

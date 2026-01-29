@@ -85,8 +85,8 @@ CREATE TABLE hbase_dim_account (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_account',
     'zookeeper.quorum' = 'hbase-master:2181',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
 -- ============================================================
@@ -142,8 +142,8 @@ CREATE TABLE hbase_dim_video (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
     'zookeeper.quorum' = 'hbase-master:2181',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
 -- ============================================================
@@ -182,8 +182,8 @@ CREATE TABLE hbase_dim_comment (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_comment',
     'zookeeper.quorum' = 'hbase-master:2181',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
 -- ============================================================

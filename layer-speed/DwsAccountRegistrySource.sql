@@ -1,19 +1,5 @@
--- ============================================================
--- DwsAccountRegistrySource FlinkSQL - 实时消费Kafka写入ClickHouse
--- 数据源：
---   1. app_event_account - 账号埋点（account_register注册事件）
--- 写入：dws_account_registry_source_di
---
--- 处理语义：
---   统计新注册账号，按多维度聚合
---   注：实时层不lookup维度表，维度字段填null，由离线层T+1覆盖补全
---   使用CUMULATE窗口实现天内累加，每分钟输出当天累计值
--- ============================================================
-
--- 设置时区，确保CUMULATE窗口从北京时间00:00开始
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
--- 1. 创建 Kafka Source 表 - 账号埋点
 DROP TABLE IF EXISTS kafka_event_account;
 CREATE TABLE kafka_event_account (
     event_id            STRING,
@@ -52,8 +38,6 @@ CREATE TABLE kafka_event_account (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 ClickHouse Sink 表 - 每日新注册账号来源分析表
--- 字段与batch层/ClickHouse DDL保持一致，维度字段填null
 DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
 CREATE TABLE clickhouse_dws_account_registry_source (
     -- 来源维度（实时层填null，由离线层补全）
@@ -83,17 +67,10 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     'table-name' = 'dws_account_registry_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '60s'
 );
 
--- ============================================================
--- 3. 实时聚合新注册账号
--- 使用CUMULATE窗口，每1分钟输出当天从00:00到当前的累计值
--- 处理语义：
---   - 统计新注册账号（account_register事件）
---   - 维度字段填null，由离线层T+1覆盖补全
--- ============================================================
 
 INSERT INTO clickhouse_dws_account_registry_source
 SELECT
@@ -122,7 +99,7 @@ FROM TABLE(
     CUMULATE(
         TABLE kafka_event_account,
         DESCRIPTOR(event_time),
-        INTERVAL '5' SECOND,
+        INTERVAL '60' SECOND,
         INTERVAL '1' DAY
     )
 )

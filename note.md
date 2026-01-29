@@ -45,6 +45,10 @@
 
   - 使用event_ts并设置watermark允许迟到的时候，需要注意每个taskmanager的时区需要和event_ts时区一致，否则无法落入窗内
 
+## 搭建看板有哪些需要注意
+
+  - 创建数据集需要使用视图，`FROM 表名 FINAL`，避免clickhouse后台merge时执行查询将多个版本累加
+
 ## 已知问题
 
   - 如果用户还未收藏视频，就将其取消收藏了，会导致视频收藏数-1，需要确保unfavorite和unlike行为是合法的

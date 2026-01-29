@@ -62,8 +62,8 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     'table-name' = 'dws_video_stats_account_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
 
 -- ============================================================
@@ -93,8 +93,8 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     'table-name' = 'dws_account_registry_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
 
 -- ============================================================
@@ -138,8 +138,8 @@ CREATE TABLE clickhouse_dws_vip_order_source (
     'table-name' = 'dws_vip_order_source_di',
     'username' = 'default',
     'password' = '',
-    'sink.buffer-flush.max-rows' = '10',
-    'sink.buffer-flush.interval' = '1s'
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
 );
 
 -- ============================================================

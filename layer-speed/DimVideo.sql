@@ -1,12 +1,3 @@
--- ============================================================
--- DimVideo FlinkSQL - 实时消费Kafka写入HBase
--- 数据源：
---   1. app_video_content - 视频基础数据
---   2. app_event_video - 视频行为埋点（观看/点赞/投币/收藏/分享/弹幕等）
---   3. app_event_comment - 评论行为埋点（用于统计视频评论数）
--- ============================================================
-
--- 1. 创建 Kafka Source 表 - 视频基础数据
 DROP TABLE IF EXISTS kafka_video_content;
 CREATE TABLE kafka_video_content (
     bvid                STRING,
@@ -52,7 +43,6 @@ CREATE TABLE kafka_video_content (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 2. 创建 Kafka Source 表 - 视频行为埋点
 DROP TABLE IF EXISTS kafka_event_video;
 CREATE TABLE kafka_event_video (
     event_id            STRING,
@@ -75,7 +65,6 @@ CREATE TABLE kafka_event_video (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 3. 创建 Kafka Source 表 - 评论行为埋点（用于统计视频评论数）
 DROP TABLE IF EXISTS kafka_event_comment_for_video;
 CREATE TABLE kafka_event_comment_for_video (
     event_id            STRING,
@@ -102,7 +91,6 @@ CREATE TABLE kafka_event_comment_for_video (
     'json.ignore-parse-errors' = 'true'
 );
 
--- 4. 创建 HBase Sink 表 - 视频基础信息
 DROP TABLE IF EXISTS hbase_dim_video;
 CREATE TABLE hbase_dim_video (
     rowkey STRING,
@@ -141,10 +129,11 @@ CREATE TABLE hbase_dim_video (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'hbase-master:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
--- 5. 创建 HBase Sink 表 - 视频统计增量（不含评论数）
 DROP TABLE IF EXISTS hbase_dim_video_incr;
 CREATE TABLE hbase_dim_video_incr (
     rowkey STRING,
@@ -160,10 +149,11 @@ CREATE TABLE hbase_dim_video_incr (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'hbase-master:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
--- 6. 创建 HBase Sink 表 - 视频评论数增量
 DROP TABLE IF EXISTS hbase_dim_video_reply_incr;
 CREATE TABLE hbase_dim_video_reply_incr (
     rowkey STRING,
@@ -174,12 +164,11 @@ CREATE TABLE hbase_dim_video_reply_incr (
 ) WITH (
     'connector' = 'hbase-2.2',
     'table-name' = 'dim:dim_video',
-    'zookeeper.quorum' = 'hbase-master:2181'
+    'zookeeper.quorum' = 'hbase-master:2181',
+    'sink.buffer-flush.max-rows' = '1000',
+    'sink.buffer-flush.interval' = '5s'
 );
 
--- ============================================================
--- 7. 插入视频基础数据
--- ============================================================
 
 INSERT INTO hbase_dim_video
 SELECT
@@ -232,11 +221,6 @@ SELECT
 FROM kafka_video_content
 WHERE bvid IS NOT NULL;
 
--- ============================================================
--- 8. 实时聚合视频行为，计算统计增量
--- 事件类型：video_view, video_like, video_unlike, video_coin,
---          video_favorite, video_unfavorite, video_share, video_danmaku, video_triple
--- ============================================================
 INSERT INTO hbase_dim_video_incr
 SELECT
     REVERSE(bvid) AS rowkey,
@@ -285,10 +269,6 @@ GROUP BY
     window_end;
 
 
--- ============================================================
--- 9. 实时聚合评论事件，计算视频评论数增量
--- 事件类型：comment_create（仅统计根评论，otype=1 表示视频评论）
--- ============================================================
 INSERT INTO hbase_dim_video_reply_incr
 SELECT
     REVERSE(oid) AS rowkey,
