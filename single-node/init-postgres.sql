@@ -1,2 +1,0 @@
-CREATE DATABASE superset;
-CREATE DATABASE metastore;
