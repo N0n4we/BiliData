@@ -1,5 +1,6 @@
 from kafka import KafkaProducer
 import random
+import math
 import time
 import uuid
 import json
@@ -9,19 +10,106 @@ import signal
 import sys
 from typing import Dict, Any, List
 
-# ==========================================
-# 1. 配置区域 (Configuration)
-# ==========================================
-class Constant:
-    # Kafka 配置
-    KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
 
-    # 业务表 (作为 Kafka Topic)
+class DistributionUtil:
+    @staticmethod
+    def pareto(alpha: float = 1.5, x_min: float = 1.0) -> float:
+        u = random.random()
+        return x_min / (u ** (1.0 / alpha))
+
+    @staticmethod
+    def zipf_index(n: int, s: float = 1.2) -> int:
+        if n <= 0:
+            return 0
+        weights = [1.0 / ((i + 1) ** s) for i in range(n)]
+        total = sum(weights)
+        r = random.random() * total
+        cumsum = 0.0
+        for i, w in enumerate(weights):
+            cumsum += w
+            if r <= cumsum:
+                return i
+        return n - 1
+
+    @staticmethod
+    def exponential(lambd: float = 1.0) -> float:
+        return random.expovariate(lambd)
+
+    @staticmethod
+    def log_normal(mu: float = 0.0, sigma: float = 1.0) -> float:
+        return random.lognormvariate(mu, sigma)
+
+    @staticmethod
+    def beta_biased(a: float = 2.0, b: float = 5.0) -> float:
+        return random.betavariate(a, b)
+
+    @staticmethod
+    def triangular_biased(low: float, high: float, mode: float) -> float:
+        return random.triangular(low, high, mode)
+
+    @staticmethod
+    def biased_bool(true_prob: float = 0.5) -> bool:
+        return random.random() < true_prob
+
+    @staticmethod
+    def biased_choice(items: list, bias: str = "front") -> Any:
+        if not items:
+            return None
+        n = len(items)
+        if n == 1:
+            return items[0]
+
+        if bias == "front":
+            idx = DistributionUtil.zipf_index(n, s=1.5)
+        elif bias == "back":
+            idx = n - 1 - DistributionUtil.zipf_index(n, s=1.5)
+        else:
+            idx = int(random.gauss(n / 2, n / 6))
+            idx = max(0, min(n - 1, idx))
+        return items[idx]
+
+    @staticmethod
+    def skewed_int(low: int, high: int, skew: str = "low") -> int:
+        if low >= high:
+            return low
+
+        if skew == "low":
+            ratio = random.betavariate(1.5, 5)
+        elif skew == "high":
+            ratio = random.betavariate(5, 1.5)
+        else:
+            ratio = random.betavariate(4, 4)
+
+        return int(low + ratio * (high - low))
+
+    @staticmethod
+    def long_tail_int(low: int, high: int, tail_factor: float = 2.0) -> int:
+        if low >= high:
+            return low
+        range_size = high - low
+        val = DistributionUtil.log_normal(0, tail_factor / 3)
+        normalized = 1 - math.exp(-val)
+        return int(low + normalized * range_size)
+
+    @staticmethod
+    def clustered_choice(items: list, cluster_size: int = 3) -> Any:
+        if not items:
+            return None
+        n = len(items)
+        if n <= cluster_size:
+            return random.choice(items)
+
+        if random.random() < 0.8:
+            hot_indices = random.sample(range(n), min(cluster_size, n))
+            return items[random.choice(hot_indices)]
+        else:
+            return random.choice(items)
+
+class Constant:
+    KAFKA_BOOTSTRAP_SERVERS = ["localhost:9092"]
     TBL_USER = "app_user_profile"
     TBL_VIDEO = "app_video_content"
     TBL_COMMENT = "app_comment"
-
-    # 埋点表 - 按主题分表 (作为 Kafka Topic)
     TBL_EVENT_ACCOUNT = "app_event_account"
     TBL_EVENT_VIDEO = "app_event_video"
     TBL_EVENT_SOCIAL = "app_event_social"
@@ -29,11 +117,7 @@ class Constant:
     TBL_EVENT_VIP = "app_event_vip"
 
 
-# ==========================================
-# 2. 埋点事件类型定义
-# ==========================================
 class EventTypes:
-    # 账号相关事件
     ACCOUNT_REGISTER = "account_register"
     ACCOUNT_LOGIN = "account_login"
     ACCOUNT_LOGOUT = "account_logout"
@@ -43,8 +127,6 @@ class EventTypes:
     ACCOUNT_DEACTIVATE = "account_deactivate"
     ACCOUNT_BIND_PHONE = "account_bind_phone"
     ACCOUNT_BIND_EMAIL = "account_bind_email"
-
-    # 视频相关事件
     VIDEO_UPLOAD_START = "video_upload_start"
     VIDEO_UPLOAD_PROGRESS = "video_upload_progress"
     VIDEO_UPLOAD_COMPLETE = "video_upload_complete"
@@ -55,16 +137,12 @@ class EventTypes:
     VIDEO_PUBLISH = "video_publish"
     VIDEO_VIEW = "video_view"
     VIDEO_PLAY_HEARTBEAT = "video_play_heartbeat"
-
-    # 账号互动事件
     SOCIAL_FOLLOW = "social_follow"
     SOCIAL_UNFOLLOW = "social_unfollow"
     SOCIAL_BLOCK = "social_block"
     SOCIAL_UNBLOCK = "social_unblock"
     SOCIAL_WHISPER = "social_whisper"
     SOCIAL_REPORT_USER = "social_report_user"
-
-    # 视频互动事件
     VIDEO_LIKE = "video_like"
     VIDEO_UNLIKE = "video_unlike"
     VIDEO_COIN = "video_coin"
@@ -73,21 +151,15 @@ class EventTypes:
     VIDEO_SHARE = "video_share"
     VIDEO_DANMAKU = "video_danmaku"
     VIDEO_TRIPLE = "video_triple"
-
-    # 评论相关事件
     COMMENT_CREATE = "comment_create"
     COMMENT_REPLY = "comment_reply"
     COMMENT_UPDATE = "comment_update"
     COMMENT_DELETE = "comment_delete"
     COMMENT_REPORT = "comment_report"
-
-    # 评论互动事件
     COMMENT_LIKE = "comment_like"
     COMMENT_UNLIKE = "comment_unlike"
     COMMENT_DISLIKE = "comment_dislike"
     COMMENT_UNDISLIKE = "comment_undislike"
-
-    # VIP相关事件
     VIP_PAGE_VIEW = "vip_page_view"
     VIP_SELECT_PLAN = "vip_select_plan"
     VIP_CREATE_ORDER = "vip_create_order"
@@ -99,9 +171,6 @@ class EventTypes:
     VIP_AUTO_RENEW_OFF = "vip_auto_renew_off"
 
 
-# ==========================================
-# 3. 数据工具类 (MockDataUtil)
-# ==========================================
 class MockDataUtil:
     SURNAMES = ["王", "李", "张", "刘", "陈", "杨", "黄", "赵", "吴", "周", "徐", "孙", "马", "朱", "胡", "郭", "林", "何"]
     GIVEN_NAMES = ["伟", "芳", "娜", "敏", "静", "丽", "强", "磊", "军", "洋", "勇", "杰", "明", "秀英", "欣", "雪", "浩", "涛"]
@@ -212,14 +281,9 @@ class MockDataUtil:
         }
 
 
-# ==========================================
-# 4. 运行时配置
-# ==========================================
 class RoutineConfig:
-    # 发送间隔（秒）
-    INTERVAL_SECONDS = 1.0
-
-    # 每轮生成的数据量
+    INTERVAL_MIN = 0.3
+    INTERVAL_MAX = 2.5
     BATCH_USERS = 2
     BATCH_VIDEOS = 1
     BATCH_COMMENTS = 3
@@ -228,31 +292,74 @@ class RoutineConfig:
     BATCH_SOCIAL_EVENTS = 8
     BATCH_COMMENT_EVENTS = 10
     BATCH_VIP_EVENTS = 4
-
-    # 数据池大小限制（防止内存无限增长）
     MAX_MIDS = 1000
     MAX_BVIDS = 500
     MAX_RPIDS = 2000
 
 
-# ==========================================
-# 5. 数据生成器 (Kafka)
-# ==========================================
 class ODSGenerator:
     def __init__(self, producer: KafkaProducer):
         self.producer = producer
         self.mids: List[int] = []
         self.bvids: List[str] = []
         self.rpids: List[int] = []
+        self._hot_mids: List[int] = []
+        self._hot_bvids: List[str] = []
+        self._hot_rpids: List[int] = []
+        self._mid_weights: List[float] = []
+        self._bvid_weights: List[float] = []
+
+    def _update_hot_pools(self):
+        if self.mids:
+            hot_count = max(3, len(self.mids) // 10)
+            self._hot_mids = random.sample(self.mids, min(hot_count, len(self.mids)))
+            self._mid_weights = [1.0 / ((i + 1) ** 1.2) for i in range(len(self.mids))]
+
+        if self.bvids:
+            hot_count = max(3, len(self.bvids) // 8)
+            self._hot_bvids = random.sample(self.bvids, min(hot_count, len(self.bvids)))
+            self._bvid_weights = [1.0 / ((i + 1) ** 1.3) for i in range(len(self.bvids))]
+
+        if self.rpids:
+            hot_count = max(5, len(self.rpids) // 15)
+            self._hot_rpids = random.sample(self.rpids, min(hot_count, len(self.rpids)))
+
+    def _pick_mid(self, prefer_hot: bool = True) -> int:
+        if not self.mids:
+            return random.randint(10000000, 99999999)
+
+        if prefer_hot and self._hot_mids and random.random() < 0.7:
+            return random.choice(self._hot_mids)
+        else:
+            idx = DistributionUtil.zipf_index(len(self.mids), s=1.2)
+            return self.mids[idx]
+
+    def _pick_bvid(self, prefer_hot: bool = True) -> str:
+        if not self.bvids:
+            return MockDataUtil.generate_bvid()
+
+        if prefer_hot and self._hot_bvids and random.random() < 0.75:
+            return random.choice(self._hot_bvids)
+        else:
+            idx = DistributionUtil.zipf_index(len(self.bvids), s=1.3)
+            return self.bvids[idx]
+
+    def _pick_rpid(self, prefer_hot: bool = True) -> int:
+        if not self.rpids:
+            return MockDataUtil.generate_comment_id()
+
+        if prefer_hot and self._hot_rpids and random.random() < 0.6:
+            return random.choice(self._hot_rpids)
+        else:
+            idx = DistributionUtil.zipf_index(len(self.rpids), s=1.1)
+            return self.rpids[idx]
 
     def _send_to_kafka(self, topic: str, messages: List[Dict]):
-        """批量发送消息到 Kafka"""
         for msg in messages:
             self.producer.send(topic, value=msg)
         self.producer.flush()
 
     def _get_base_event_data(self, mid: int):
-        """生成埋点基础数据"""
         client_ts = MockDataUtil.get_current_ts() - random.randint(0, 60000)
         return {
             "trace_id": MockDataUtil.generate_trace_id(),
@@ -267,7 +374,6 @@ class ODSGenerator:
         }
 
     def _trim_pools(self):
-        """限制数据池大小"""
         if len(self.mids) > RoutineConfig.MAX_MIDS:
             self.mids = self.mids[-RoutineConfig.MAX_MIDS:]
         if len(self.bvids) > RoutineConfig.MAX_BVIDS:
@@ -275,39 +381,40 @@ class ODSGenerator:
         if len(self.rpids) > RoutineConfig.MAX_RPIDS:
             self.rpids = self.rpids[-RoutineConfig.MAX_RPIDS:]
 
-    # ==========================================
-    # 基础数据生成
-    # ==========================================
     def gen_users(self, count: int):
-        """生成基础用户数据"""
         data = []
         for _ in range(count):
             mid = random.randint(10000000, 99999999)
             self.mids.append(mid)
 
+            verify_type = -1 if random.random() < 0.92 else random.choice([0, 1])
             verify_json = {
-                "type": random.choice([-1, 0, 1]),
-                "desc": "bilibili 知名UP主" if random.random() > 0.95 else ""
+                "type": verify_type,
+                "desc": "bilibili 知名UP主" if verify_type == 1 else ""
             }
 
             settings_json = {
-                "privacy": {"show_fav": random.choice([True, False]), "show_history": random.choice([True, False])},
-                "push": {"comment": True, "like": random.choice([True, False]), "at": True},
-                "theme": random.choice(["auto", "light", "dark"])
+                "privacy": {"show_fav": DistributionUtil.biased_bool(0.6), "show_history": DistributionUtil.biased_bool(0.4)},
+                "push": {"comment": True, "like": DistributionUtil.biased_bool(0.7), "at": True},
+                "theme": DistributionUtil.biased_choice(["auto", "light", "dark"], bias="front")
             }
 
-            tags = random.sample(["宅", "萌", "技术宅", "古风", "鬼畜", "一般路过", "游戏", "动漫", "音乐", "舞蹈"], k=random.randint(0, 4))
+            tags = random.sample(["宅", "萌", "技术宅", "古风", "鬼畜", "一般路过", "游戏", "动漫", "音乐", "舞蹈"], k=DistributionUtil.skewed_int(0, 4, skew="low"))
+
+            level = DistributionUtil.skewed_int(0, 6, skew="low")
+            coins = round(DistributionUtil.long_tail_int(0, 5000, tail_factor=2.5), 1)
+            vip_type = 0 if random.random() < 0.85 else random.choice([1, 2])
 
             data.append({
                 "mid": mid,
                 "nick_name": MockDataUtil.generate_username(),
-                "sex": random.choice(["男", "女", "保密"]),
+                "sex": DistributionUtil.biased_choice(["男", "女", "保密"], bias="front"),
                 "face_url": f"https://i0.hdslb.com/bfs/face/{uuid.uuid4().hex}.jpg",
-                "sign": random.choice(["这个人很懒", "我的简介？不存在的", "二次元浓度超标", "干杯！", ""]),
-                "level": random.randint(0, 6),
-                "birthday": f"{random.randint(1985, 2008)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
-                "coins": round(random.uniform(0, 5000), 1),
-                "vip_type": random.choice([0, 0, 0, 1, 2]),
+                "sign": DistributionUtil.biased_choice(["这个人很懒", "我的简介？不存在的", "二次元浓度超标", "干杯！", ""], bias="back"),
+                "level": level,
+                "birthday": f"{DistributionUtil.skewed_int(1985, 2008, skew='high')}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
+                "coins": coins,
+                "vip_type": vip_type,
                 "official_verify": verify_json,
                 "settings": settings_json,
                 "tags": tags,
@@ -316,12 +423,12 @@ class ODSGenerator:
                 "updated_at": int(time.time() * 1000)
             })
 
+        self._update_hot_pools()
         self._send_to_kafka(Constant.TBL_USER, data)
         self._trim_pools()
         return count
 
     def gen_videos(self, count: int):
-        """生成基础视频数据"""
         if not self.mids:
             return 0
 
@@ -332,46 +439,46 @@ class ODSGenerator:
         for _ in range(count):
             bvid = MockDataUtil.generate_bvid()
             self.bvids.append(bvid)
-            mid = random.choice(self.mids)
-            category = random.choice(MockDataUtil.VIDEO_CATEGORIES)
+            mid = self._pick_mid(prefer_hot=True)
+            category = DistributionUtil.biased_choice(MockDataUtil.VIDEO_CATEGORIES, bias="front")
 
             meta = {
                 "upload_ip": MockDataUtil.generate_ip(),
-                "camera": random.choice(["Sony A7M4", "iPhone 15 Pro", "Canon R5", "GoPro 12", "DJI Pocket 3"]),
-                "software": random.choice(["Premiere Pro", "Final Cut Pro", "DaVinci Resolve", "剪映"]),
-                "resolution": random.choice(["1080p", "2k", "4k"]),
-                "fps": random.choice([24, 30, 60, 120])
+                "camera": DistributionUtil.biased_choice(["Sony A7M4", "iPhone 15 Pro", "Canon R5", "GoPro 12", "DJI Pocket 3"], bias="front"),
+                "software": DistributionUtil.biased_choice(["Premiere Pro", "Final Cut Pro", "DaVinci Resolve", "剪映"], bias="back"),
+                "resolution": DistributionUtil.biased_choice(["1080p", "2k", "4k"], bias="front"),
+                "fps": DistributionUtil.biased_choice([24, 30, 60, 120], bias="front")
             }
 
             stats = {
-                "view": random.randint(0, 1000000),
-                "danmaku": random.randint(0, 10000),
-                "reply": random.randint(0, 5000),
-                "favorite": random.randint(0, 20000),
-                "coin": random.randint(0, 30000),
-                "share": random.randint(0, 5000),
-                "like": random.randint(0, 50000)
+                "view": DistributionUtil.long_tail_int(0, 1000000, tail_factor=3.0),
+                "danmaku": DistributionUtil.long_tail_int(0, 10000, tail_factor=2.5),
+                "reply": DistributionUtil.long_tail_int(0, 5000, tail_factor=2.5),
+                "favorite": DistributionUtil.long_tail_int(0, 20000, tail_factor=2.8),
+                "coin": DistributionUtil.long_tail_int(0, 30000, tail_factor=2.8),
+                "share": DistributionUtil.long_tail_int(0, 5000, tail_factor=2.5),
+                "like": DistributionUtil.long_tail_int(0, 50000, tail_factor=3.0)
             }
 
             audit = [
-                {"ts": int(time.time()) - random.randint(0, 86400), "operator": "system", "status": "pass"},
+                {"ts": int(time.time()) - DistributionUtil.skewed_int(0, 86400, skew="low"), "operator": "system", "status": "pass"},
             ]
 
-            pubdate = int(time.time() * 1000) - random.randint(0, 365) * 86400 * 1000
+            pubdate = int(time.time() * 1000) - DistributionUtil.long_tail_int(0, 365, tail_factor=2.0) * 86400 * 1000
 
             data.append({
                 "bvid": bvid,
-                "title": f"{random.choice(titles)}{random.choice(topics)}_{bvid[-6:]}",
+                "title": f"{DistributionUtil.biased_choice(titles, bias='front')}{random.choice(topics)}_{bvid[-6:]}",
                 "cover": f"https://i0.hdslb.com/bfs/archive/{uuid.uuid4().hex}.jpg",
                 "desc_text": "视频简介...",
-                "duration": random.randint(30, 7200),
+                "duration": DistributionUtil.skewed_int(30, 7200, skew="low"),
                 "pubdate": pubdate,
                 "mid": mid,
                 "category_id": random.randint(1, 200),
                 "category_name": category,
                 "state": 0,
                 "attribute": 0,
-                "is_private": False,
+                "is_private": DistributionUtil.biased_bool(0.05),
                 "meta_info": meta,
                 "stats": stats,
                 "audit_info": audit,
@@ -379,12 +486,12 @@ class ODSGenerator:
                 "updated_at": int(time.time() * 1000)
             })
 
+        self._update_hot_pools()
         self._send_to_kafka(Constant.TBL_VIDEO, data)
         self._trim_pools()
         return count
 
     def gen_comments(self, count: int):
-        """生成基础评论数据"""
         if not self.mids or not self.bvids:
             return 0
 
@@ -393,36 +500,36 @@ class ODSGenerator:
             rpid = MockDataUtil.generate_comment_id()
             self.rpids.append(rpid)
 
-            is_reply = random.random() > 0.7 and len(self.rpids) > 10
-            root = random.choice(self.rpids[:-1]) if is_reply else 0
+            is_reply = DistributionUtil.biased_bool(0.25) and len(self.rpids) > 10
+            root = self._pick_rpid(prefer_hot=True) if is_reply else 0
 
-            created_at = int(time.time() * 1000) - random.randint(0, 720) * 3600 * 1000
+            created_at = int(time.time() * 1000) - DistributionUtil.long_tail_int(0, 720, tail_factor=2.0) * 3600 * 1000
+
+            like_count = DistributionUtil.long_tail_int(0, 1000, tail_factor=2.5)
+            reply_count = DistributionUtil.long_tail_int(0, 50, tail_factor=2.0) if not is_reply else 0
 
             data.append({
                 "rpid": rpid,
-                "oid": random.choice(self.bvids),
+                "oid": self._pick_bvid(prefer_hot=True),
                 "otype": 1,
-                "mid": random.choice(self.mids),
+                "mid": self._pick_mid(prefer_hot=True),
                 "root": root,
                 "parent": root,
-                "content": random.choice(MockDataUtil.COMMENT_TEMPLATES),
-                "like_count": random.randint(0, 1000),
+                "content": DistributionUtil.biased_choice(MockDataUtil.COMMENT_TEMPLATES, bias="front"),
+                "like_count": like_count,
                 "dislike_count": 0,
-                "reply_count": random.randint(0, 50) if not is_reply else 0,
+                "reply_count": reply_count,
                 "state": 0,
                 "created_at": created_at,
                 "updated_at": created_at
             })
 
+        self._update_hot_pools()
         self._send_to_kafka(Constant.TBL_COMMENT, data)
         self._trim_pools()
         return count
 
-    # ==========================================
-    # 账号相关埋点生成
-    # ==========================================
     def gen_account_events(self, count: int):
-        """生成账号相关埋点"""
         if not self.mids:
             return 0
 
@@ -441,43 +548,43 @@ class ODSGenerator:
         data = []
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
-            mid = random.choice(self.mids) if event_type != EventTypes.ACCOUNT_REGISTER else random.randint(90000000, 99999999)
+            mid = self._pick_mid(prefer_hot=True) if event_type != EventTypes.ACCOUNT_REGISTER else random.randint(90000000, 99999999)
             base = self._get_base_event_data(mid)
 
-            props = {"event_type": event_type, "source_page": random.choice(["settings", "profile", "login", "app_start"])}
+            props = {"event_type": event_type, "source_page": DistributionUtil.biased_choice(["settings", "profile", "login", "app_start"], bias="front")}
 
             if event_type == EventTypes.ACCOUNT_REGISTER:
                 props.update({
-                    "register_type": random.choice(["phone", "email", "qq", "wechat", "weibo"]),
-                    "invite_code": f"INV{random.randint(10000, 99999)}" if random.random() > 0.8 else "",
-                    "channel": random.choice(MockDataUtil.CHANNELS)
+                    "register_type": DistributionUtil.biased_choice(["phone", "email", "qq", "wechat", "weibo"], bias="front"),
+                    "invite_code": f"INV{random.randint(10000, 99999)}" if DistributionUtil.biased_bool(0.15) else "",
+                    "channel": DistributionUtil.biased_choice(MockDataUtil.CHANNELS, bias="front")
                 })
             elif event_type == EventTypes.ACCOUNT_LOGIN:
                 props.update({
-                    "login_type": random.choice(["password", "sms", "qrcode", "fingerprint", "face_id"]),
-                    "is_auto_login": random.choice([True, False]),
-                    "login_result": random.choices(["success", "fail"], weights=[95, 5])[0]
+                    "login_type": DistributionUtil.biased_choice(["password", "sms", "qrcode", "fingerprint", "face_id"], bias="front"),
+                    "is_auto_login": DistributionUtil.biased_bool(0.6),
+                    "login_result": "success" if DistributionUtil.biased_bool(0.96) else "fail"
                 })
             elif event_type == EventTypes.ACCOUNT_UPDATE_PROFILE:
                 props.update({
-                    "updated_fields": random.sample(["nick_name", "sign", "sex", "birthday"], k=random.randint(1, 3)),
+                    "updated_fields": random.sample(["nick_name", "sign", "sex", "birthday"], k=DistributionUtil.skewed_int(1, 3, skew="low")),
                     "before_snapshot": {"nick_name": "旧昵称"},
                     "after_snapshot": {"nick_name": "新昵称"}
                 })
             elif event_type == EventTypes.ACCOUNT_UPDATE_AVATAR:
                 props.update({
-                    "avatar_source": random.choice(["camera", "album", "system_preset"]),
-                    "file_size_kb": random.randint(100, 5000)
+                    "avatar_source": DistributionUtil.biased_choice(["camera", "album", "system_preset"], bias="middle"),
+                    "file_size_kb": DistributionUtil.skewed_int(100, 5000, skew="low")
                 })
             elif event_type == EventTypes.ACCOUNT_DEACTIVATE:
                 props.update({
-                    "reason": random.choice(["不再使用", "隐私顾虑", "账号安全", "其他"]),
-                    "account_age_days": random.randint(30, 2000)
+                    "reason": DistributionUtil.biased_choice(["不再使用", "隐私顾虑", "账号安全", "其他"], bias="front"),
+                    "account_age_days": DistributionUtil.long_tail_int(30, 2000, tail_factor=2.0)
                 })
             elif event_type in [EventTypes.ACCOUNT_BIND_PHONE, EventTypes.ACCOUNT_BIND_EMAIL]:
                 props.update({
-                    "bind_result": random.choices(["success", "fail"], weights=[90, 10])[0],
-                    "is_rebind": random.choice([True, False])
+                    "bind_result": "success" if DistributionUtil.biased_bool(0.92) else "fail",
+                    "is_rebind": DistributionUtil.biased_bool(0.2)
                 })
 
             data.append({
@@ -488,7 +595,7 @@ class ODSGenerator:
                 "client_ts": base["client_ts"],
                 "server_ts": base["server_ts"],
                 "url_path": f"/account/{event_type.split('_')[-1]}",
-                "referer": random.choice(["https://www.bilibili.com/", "app://settings", "app://profile"]),
+                "referer": DistributionUtil.biased_choice(["https://www.bilibili.com/", "app://settings", "app://profile"], bias="front"),
                 "ua": base["ua"],
                 "ip": base["ip"],
                 "device_info": base["device_info"],
@@ -499,11 +606,7 @@ class ODSGenerator:
         self._send_to_kafka(Constant.TBL_EVENT_ACCOUNT, data)
         return count
 
-    # ==========================================
-    # 视频相关埋点生成
-    # ==========================================
     def gen_video_events(self, count: int):
-        """生成视频相关埋点"""
         if not self.mids:
             return 0
 
@@ -531,8 +634,8 @@ class ODSGenerator:
         data = []
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
-            mid = random.choice(self.mids)
-            bvid = random.choice(self.bvids) if self.bvids else MockDataUtil.generate_bvid()
+            mid = self._pick_mid(prefer_hot=True)
+            bvid = self._pick_bvid(prefer_hot=True) if self.bvids else MockDataUtil.generate_bvid()
             base = self._get_base_event_data(mid)
 
             props = {"event_type": event_type}
@@ -540,97 +643,97 @@ class ODSGenerator:
             if event_type == EventTypes.VIDEO_VIEW:
                 props.update({
                     "bvid": bvid,
-                    "from": random.choice(MockDataUtil.PAGE_SOURCES),
+                    "from": DistributionUtil.biased_choice(MockDataUtil.PAGE_SOURCES, bias="front"),
                     "spm_id": f"{random.randint(100,999)}.{random.randint(100,999)}.0.0",
-                    "is_auto_play": random.choice([True, False]),
-                    "quality": random.choice(["360p", "480p", "720p", "1080p", "4k"])
+                    "is_auto_play": DistributionUtil.biased_bool(0.35),
+                    "quality": DistributionUtil.biased_choice(["360p", "480p", "720p", "1080p", "4k"], bias="middle")
                 })
             elif event_type == EventTypes.VIDEO_PLAY_HEARTBEAT:
-                total_sec = random.randint(60, 7200)
+                total_sec = DistributionUtil.skewed_int(60, 7200, skew="low")
                 props.update({
                     "bvid": bvid,
-                    "progress_sec": random.randint(1, total_sec),
+                    "progress_sec": DistributionUtil.skewed_int(1, total_sec, skew="low"),
                     "total_sec": total_sec,
-                    "play_speed": random.choice([0.5, 1.0, 1.25, 1.5, 2.0]),
-                    "quality": random.choice(["720p", "1080p", "4k"]),
-                    "is_full_screen": random.choice([True, False])
+                    "play_speed": DistributionUtil.biased_choice([0.5, 1.0, 1.25, 1.5, 2.0], bias="middle"),
+                    "quality": DistributionUtil.biased_choice(["720p", "1080p", "4k"], bias="front"),
+                    "is_full_screen": DistributionUtil.biased_bool(0.4)
                 })
             elif event_type == EventTypes.VIDEO_UPLOAD_START:
                 props.update({
-                    "file_size_mb": random.randint(10, 5000),
-                    "duration_sec": random.randint(30, 7200),
-                    "resolution": random.choice(["1080p", "2k", "4k"]),
-                    "upload_type": random.choice(["single", "multi_part"])
+                    "file_size_mb": DistributionUtil.long_tail_int(10, 5000, tail_factor=2.5),
+                    "duration_sec": DistributionUtil.skewed_int(30, 7200, skew="low"),
+                    "resolution": DistributionUtil.biased_choice(["1080p", "2k", "4k"], bias="front"),
+                    "upload_type": "single" if DistributionUtil.biased_bool(0.7) else "multi_part"
                 })
             elif event_type == EventTypes.VIDEO_UPLOAD_PROGRESS:
                 props.update({
                     "upload_id": str(uuid.uuid4()),
-                    "progress_percent": random.randint(1, 99),
-                    "uploaded_mb": random.randint(1, 1000),
-                    "speed_kbps": random.randint(500, 50000)
+                    "progress_percent": DistributionUtil.skewed_int(1, 99, skew="middle"),
+                    "uploaded_mb": DistributionUtil.skewed_int(1, 1000, skew="low"),
+                    "speed_kbps": DistributionUtil.long_tail_int(500, 50000, tail_factor=2.0)
                 })
             elif event_type == EventTypes.VIDEO_UPLOAD_COMPLETE:
                 props.update({
                     "bvid": bvid,
                     "title": f"新上传视频_{bvid[-6:]}",
-                    "category": random.choice(MockDataUtil.VIDEO_CATEGORIES),
-                    "duration_sec": random.randint(30, 7200),
-                    "upload_duration_sec": random.randint(10, 600)
+                    "category": DistributionUtil.biased_choice(MockDataUtil.VIDEO_CATEGORIES, bias="front"),
+                    "duration_sec": DistributionUtil.skewed_int(30, 7200, skew="low"),
+                    "upload_duration_sec": DistributionUtil.long_tail_int(10, 600, tail_factor=2.0)
                 })
             elif event_type == EventTypes.VIDEO_UPLOAD_FAIL:
                 props.update({
-                    "error_code": random.choice(["NETWORK_ERROR", "FILE_TOO_LARGE", "FORMAT_NOT_SUPPORT", "SERVER_ERROR"]),
+                    "error_code": DistributionUtil.biased_choice(["NETWORK_ERROR", "FILE_TOO_LARGE", "FORMAT_NOT_SUPPORT", "SERVER_ERROR"], bias="front"),
                     "error_msg": "上传失败",
-                    "retry_count": random.randint(0, 3)
+                    "retry_count": DistributionUtil.skewed_int(0, 3, skew="low")
                 })
             elif event_type == EventTypes.VIDEO_UPDATE_INFO:
                 props.update({
                     "bvid": bvid,
-                    "updated_fields": random.sample(["title", "desc", "cover", "tags", "category"], k=random.randint(1, 3))
+                    "updated_fields": random.sample(["title", "desc", "cover", "tags", "category"], k=DistributionUtil.skewed_int(1, 3, skew="low"))
                 })
             elif event_type == EventTypes.VIDEO_DELETE:
                 props.update({
                     "bvid": bvid,
-                    "delete_reason": random.choice(["personal", "copyright", "mistake", "other"]),
-                    "video_age_days": random.randint(1, 365)
+                    "delete_reason": DistributionUtil.biased_choice(["personal", "copyright", "mistake", "other"], bias="front"),
+                    "video_age_days": DistributionUtil.long_tail_int(1, 365, tail_factor=2.0)
                 })
             elif event_type in [EventTypes.VIDEO_LIKE, EventTypes.VIDEO_UNLIKE]:
                 props.update({
                     "bvid": bvid,
-                    "from": random.choice(MockDataUtil.PAGE_SOURCES),
+                    "from": DistributionUtil.biased_choice(MockDataUtil.PAGE_SOURCES, bias="front"),
                     "is_liked_before": event_type == EventTypes.VIDEO_UNLIKE
                 })
             elif event_type == EventTypes.VIDEO_COIN:
                 props.update({
                     "bvid": bvid,
-                    "coin_count": random.choice([1, 2]),
-                    "with_like": random.choice([True, False]),
-                    "remain_coins": random.randint(0, 500)
+                    "coin_count": 2 if DistributionUtil.biased_bool(0.6) else 1,
+                    "with_like": DistributionUtil.biased_bool(0.7),
+                    "remain_coins": DistributionUtil.long_tail_int(0, 500, tail_factor=2.0)
                 })
             elif event_type in [EventTypes.VIDEO_FAVORITE, EventTypes.VIDEO_UNFAVORITE]:
                 props.update({
                     "bvid": bvid,
-                    "fav_folder_ids": [random.randint(1, 100) for _ in range(random.randint(1, 3))],
-                    "create_new_folder": random.choice([True, False]) if event_type == EventTypes.VIDEO_FAVORITE else False
+                    "fav_folder_ids": [random.randint(1, 100) for _ in range(DistributionUtil.skewed_int(1, 3, skew="low"))],
+                    "create_new_folder": DistributionUtil.biased_bool(0.1) if event_type == EventTypes.VIDEO_FAVORITE else False
                 })
             elif event_type == EventTypes.VIDEO_SHARE:
                 props.update({
                     "bvid": bvid,
-                    "share_channel": random.choice(MockDataUtil.SHARE_CHANNELS),
-                    "share_result": random.choices(["success", "cancel", "fail"], weights=[70, 25, 5])[0]
+                    "share_channel": DistributionUtil.biased_choice(MockDataUtil.SHARE_CHANNELS, bias="front"),
+                    "share_result": DistributionUtil.biased_choice(["success", "cancel", "fail"], bias="front")
                 })
             elif event_type == EventTypes.VIDEO_DANMAKU:
                 props.update({
                     "bvid": bvid,
-                    "content": random.choice(["哈哈哈", "awsl", "前方高能", "泪目", "太强了"]),
-                    "progress_sec": random.randint(1, 600),
-                    "danmaku_type": random.choice(["scroll", "top", "bottom"]),
-                    "color": random.choice(["#FFFFFF", "#FE0302", "#FFFF00"])
+                    "content": DistributionUtil.biased_choice(["哈哈哈", "awsl", "前方高能", "泪目", "太强了"], bias="front"),
+                    "progress_sec": DistributionUtil.skewed_int(1, 600, skew="low"),
+                    "danmaku_type": DistributionUtil.biased_choice(["scroll", "top", "bottom"], bias="front"),
+                    "color": DistributionUtil.biased_choice(["#FFFFFF", "#FE0302", "#FFFF00"], bias="front")
                 })
             elif event_type == EventTypes.VIDEO_TRIPLE:
                 props.update({
                     "bvid": bvid,
-                    "from": random.choice(MockDataUtil.PAGE_SOURCES),
+                    "from": DistributionUtil.biased_choice(MockDataUtil.PAGE_SOURCES, bias="front"),
                     "coin_count": 2
                 })
 
@@ -643,7 +746,7 @@ class ODSGenerator:
                 "client_ts": base["client_ts"],
                 "server_ts": base["server_ts"],
                 "url_path": f"/video/{bvid}",
-                "referer": random.choice(["https://www.bilibili.com/", f"app://video/{bvid}", "app://home"]),
+                "referer": DistributionUtil.biased_choice(["https://www.bilibili.com/", f"app://video/{bvid}", "app://home"], bias="front"),
                 "ua": base["ua"],
                 "ip": base["ip"],
                 "device_info": base["device_info"],
@@ -654,11 +757,7 @@ class ODSGenerator:
         self._send_to_kafka(Constant.TBL_EVENT_VIDEO, data)
         return count
 
-    # ==========================================
-    # 社交互动埋点生成
-    # ==========================================
     def gen_social_events(self, count: int):
-        """生成账号互动埋点"""
         if not self.mids or len(self.mids) < 2:
             return 0
 
@@ -674,43 +773,45 @@ class ODSGenerator:
         data = []
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
-            mid = random.choice(self.mids)
-            target_mid = random.choice([m for m in self.mids if m != mid])
+            mid = self._pick_mid(prefer_hot=True)
+            target_mid = self._pick_mid(prefer_hot=True)
+            while target_mid == mid:
+                target_mid = self._pick_mid(prefer_hot=False)
             base = self._get_base_event_data(mid)
 
             props = {
                 "event_type": event_type,
                 "target_mid": target_mid,
-                "from": random.choice(["space", "video", "comment", "search", "recommend", "dynamic"])
+                "from": DistributionUtil.biased_choice(["space", "video", "comment", "search", "recommend", "dynamic"], bias="front")
             }
 
             if event_type == EventTypes.SOCIAL_FOLLOW:
                 props.update({
-                    "target_level": random.randint(0, 6),
-                    "target_follower_count": random.randint(0, 1000000),
-                    "is_mutual": random.choice([True, False]),
-                    "special_group": random.choice([None, "特别关注", "悄悄关注"])
+                    "target_level": DistributionUtil.skewed_int(0, 6, skew="high"),
+                    "target_follower_count": DistributionUtil.long_tail_int(0, 1000000, tail_factor=3.0),
+                    "is_mutual": DistributionUtil.biased_bool(0.15),
+                    "special_group": DistributionUtil.biased_choice([None, None, None, "特别关注", "悄悄关注"], bias="front")
                 })
             elif event_type == EventTypes.SOCIAL_UNFOLLOW:
                 props.update({
-                    "follow_duration_days": random.randint(1, 1000),
-                    "unfollow_reason": random.choice(["not_interested", "too_many_updates", "content_changed", "manual"])
+                    "follow_duration_days": DistributionUtil.long_tail_int(1, 1000, tail_factor=2.0),
+                    "unfollow_reason": DistributionUtil.biased_choice(["not_interested", "too_many_updates", "content_changed", "manual"], bias="front")
                 })
             elif event_type == EventTypes.SOCIAL_BLOCK:
                 props.update({
-                    "block_reason": random.choice(["harassment", "spam", "dislike", "other"]),
-                    "is_following": random.choice([True, False])
+                    "block_reason": DistributionUtil.biased_choice(["harassment", "spam", "dislike", "other"], bias="front"),
+                    "is_following": DistributionUtil.biased_bool(0.1)
                 })
             elif event_type == EventTypes.SOCIAL_WHISPER:
                 props.update({
-                    "msg_type": random.choice(["text", "image", "emoji", "share_video"]),
-                    "msg_length": random.randint(1, 500),
-                    "is_first_msg": random.choice([True, False])
+                    "msg_type": DistributionUtil.biased_choice(["text", "image", "emoji", "share_video"], bias="front"),
+                    "msg_length": DistributionUtil.skewed_int(1, 500, skew="low"),
+                    "is_first_msg": DistributionUtil.biased_bool(0.2)
                 })
             elif event_type == EventTypes.SOCIAL_REPORT_USER:
                 props.update({
-                    "report_reason": random.choice(MockDataUtil.REPORT_REASONS),
-                    "report_evidence": random.choice(["screenshot", "link", "description"])
+                    "report_reason": DistributionUtil.biased_choice(MockDataUtil.REPORT_REASONS, bias="front"),
+                    "report_evidence": DistributionUtil.biased_choice(["screenshot", "link", "description"], bias="front")
                 })
 
             data.append({
@@ -722,7 +823,7 @@ class ODSGenerator:
                 "client_ts": base["client_ts"],
                 "server_ts": base["server_ts"],
                 "url_path": f"/space/{target_mid}",
-                "referer": random.choice(["https://www.bilibili.com/", f"app://space/{target_mid}", "app://video/BV1xxx"]),
+                "referer": DistributionUtil.biased_choice(["https://www.bilibili.com/", f"app://space/{target_mid}", f"app://video/BV1xxx"], bias="front"),
                 "ua": base["ua"],
                 "ip": base["ip"],
                 "device_info": base["device_info"],
@@ -733,11 +834,7 @@ class ODSGenerator:
         self._send_to_kafka(Constant.TBL_EVENT_SOCIAL, data)
         return count
 
-    # ==========================================
-    # 评论相关埋点生成
-    # ==========================================
     def gen_comment_events(self, count: int):
-        """生成评论相关埋点"""
         if not self.mids or not self.bvids:
             return 0
 
@@ -756,9 +853,9 @@ class ODSGenerator:
         data = []
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
-            mid = random.choice(self.mids)
-            bvid = random.choice(self.bvids)
-            rpid = random.choice(self.rpids) if self.rpids else MockDataUtil.generate_comment_id()
+            mid = self._pick_mid(prefer_hot=True)
+            bvid = self._pick_bvid(prefer_hot=True)
+            rpid = self._pick_rpid(prefer_hot=True) if self.rpids else MockDataUtil.generate_comment_id()
             base = self._get_base_event_data(mid)
 
             props = {
@@ -771,11 +868,11 @@ class ODSGenerator:
                 new_rpid = MockDataUtil.generate_comment_id()
                 props.update({
                     "rpid": new_rpid,
-                    "content": random.choice(MockDataUtil.COMMENT_TEMPLATES),
-                    "content_length": random.randint(1, 500),
-                    "has_emoji": random.choice([True, False]),
-                    "has_at": random.choice([True, False]),
-                    "from": random.choice(["video_page", "dynamic", "article"])
+                    "content": DistributionUtil.biased_choice(MockDataUtil.COMMENT_TEMPLATES, bias="front"),
+                    "content_length": DistributionUtil.skewed_int(1, 500, skew="low"),
+                    "has_emoji": DistributionUtil.biased_bool(0.35),
+                    "has_at": DistributionUtil.biased_bool(0.15),
+                    "from": DistributionUtil.biased_choice(["video_page", "dynamic", "article"], bias="front")
                 })
                 rpid = new_rpid
             elif event_type == EventTypes.COMMENT_REPLY:
@@ -784,40 +881,40 @@ class ODSGenerator:
                     "rpid": new_rpid,
                     "root_rpid": rpid,
                     "parent_rpid": rpid,
-                    "content": random.choice(MockDataUtil.COMMENT_TEMPLATES),
-                    "content_length": random.randint(1, 200),
-                    "reply_to_mid": random.choice(self.mids)
+                    "content": DistributionUtil.biased_choice(MockDataUtil.COMMENT_TEMPLATES, bias="front"),
+                    "content_length": DistributionUtil.skewed_int(1, 200, skew="low"),
+                    "reply_to_mid": self._pick_mid(prefer_hot=True)
                 })
                 rpid = new_rpid
             elif event_type == EventTypes.COMMENT_UPDATE:
                 props.update({
                     "rpid": rpid,
                     "old_content": "原评论内容",
-                    "new_content": random.choice(MockDataUtil.COMMENT_TEMPLATES),
-                    "edit_reason": random.choice(["typo", "add_content", "remove_content"])
+                    "new_content": DistributionUtil.biased_choice(MockDataUtil.COMMENT_TEMPLATES, bias="front"),
+                    "edit_reason": DistributionUtil.biased_choice(["typo", "add_content", "remove_content"], bias="front")
                 })
             elif event_type == EventTypes.COMMENT_DELETE:
                 props.update({
                     "rpid": rpid,
-                    "delete_reason": random.choice(["self_delete", "regret", "mistake"]),
-                    "comment_age_hours": random.randint(1, 720)
+                    "delete_reason": DistributionUtil.biased_choice(["self_delete", "regret", "mistake"], bias="front"),
+                    "comment_age_hours": DistributionUtil.long_tail_int(1, 720, tail_factor=2.0)
                 })
             elif event_type == EventTypes.COMMENT_REPORT:
                 props.update({
                     "rpid": rpid,
-                    "report_reason": random.choice(MockDataUtil.REPORT_REASONS),
+                    "report_reason": DistributionUtil.biased_choice(MockDataUtil.REPORT_REASONS, bias="front"),
                     "report_content_preview": "被举报的内容..."
                 })
             elif event_type in [EventTypes.COMMENT_LIKE, EventTypes.COMMENT_UNLIKE]:
                 props.update({
                     "rpid": rpid,
-                    "is_root_comment": random.choice([True, False]),
-                    "comment_owner_mid": random.choice(self.mids)
+                    "is_root_comment": DistributionUtil.biased_bool(0.7),
+                    "comment_owner_mid": self._pick_mid(prefer_hot=True)
                 })
             elif event_type in [EventTypes.COMMENT_DISLIKE, EventTypes.COMMENT_UNDISLIKE]:
                 props.update({
                     "rpid": rpid,
-                    "is_root_comment": random.choice([True, False])
+                    "is_root_comment": DistributionUtil.biased_bool(0.7)
                 })
 
             data.append({
@@ -841,11 +938,7 @@ class ODSGenerator:
         self._send_to_kafka(Constant.TBL_EVENT_COMMENT, data)
         return count
 
-    # ==========================================
-    # VIP购买埋点生成
-    # ==========================================
     def gen_vip_events(self, count: int):
-        """生成VIP购买相关埋点"""
         if not self.mids:
             return 0
 
@@ -864,24 +957,23 @@ class ODSGenerator:
         data = []
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
-            mid = random.choice(self.mids)
+            mid = self._pick_mid(prefer_hot=True)
             base = self._get_base_event_data(mid)
-            plan = random.choice(MockDataUtil.VIP_PLANS)
-            pay_method = random.choice(MockDataUtil.PAY_METHODS)
+            plan = DistributionUtil.biased_choice(MockDataUtil.VIP_PLANS, bias="front")
+            pay_method = DistributionUtil.biased_choice(MockDataUtil.PAY_METHODS, bias="front")
             order_no = MockDataUtil.generate_order_no() if event_type not in [EventTypes.VIP_PAGE_VIEW, EventTypes.VIP_SELECT_PLAN] else ""
-            has_coupon = random.choice([True, False])
+            has_coupon = DistributionUtil.biased_bool(0.25)
             coupon_id = f"CPN{random.randint(10000, 99999)}" if has_coupon else ""
-            discount_amount = random.randint(100, 500) if has_coupon else 0
+            discount_amount = DistributionUtil.skewed_int(100, 500, skew="low") if has_coupon else 0
             final_price = plan["price"] - discount_amount
 
-            # 完整的 properties 字段（所有事件结构一致）
             props = {
                 "event_type": event_type,
-                "current_vip_type": random.choice([0, 1, 2]),
-                "current_vip_expire": int(time.time()) + random.randint(-86400*30, 86400*365) if random.random() > 0.5 else 0,
-                "from": random.choice(["home_banner", "video_tip", "space", "settings", "push", "search", "vip_page", "order_complete"]),
-                "page_load_ms": random.randint(100, 3000),
-                "is_promotion_period": random.choice([True, False]),
+                "current_vip_type": 0 if DistributionUtil.biased_bool(0.7) else random.choice([1, 2]),
+                "current_vip_expire": int(time.time()) + DistributionUtil.skewed_int(-86400*30, 86400*365, skew="low") if DistributionUtil.biased_bool(0.4) else 0,
+                "from": DistributionUtil.biased_choice(["home_banner", "video_tip", "space", "settings", "push", "search", "vip_page", "order_complete"], bias="front"),
+                "page_load_ms": DistributionUtil.skewed_int(100, 3000, skew="low"),
+                "is_promotion_period": DistributionUtil.biased_bool(0.3),
                 "plan_id": plan["id"],
                 "plan_name": plan["name"],
                 "plan_price": plan["price"],
@@ -894,23 +986,22 @@ class ODSGenerator:
                 "discount_amount": discount_amount,
                 "pay_method": pay_method,
                 "amount": final_price,
-                "pay_duration_sec": random.randint(5, 120),
+                "pay_duration_sec": DistributionUtil.skewed_int(5, 120, skew="low"),
                 "new_vip_expire": int(time.time()) + plan["duration_days"] * 86400,
                 "error_code": "",
                 "error_msg": "",
                 "retry_count": 0,
                 "cancel_stage": "",
-                "time_on_pay_page_sec": random.randint(1, 300),
+                "time_on_pay_page_sec": DistributionUtil.skewed_int(1, 300, skew="low"),
                 "previous_auto_renew": False
             }
 
-            # 根据事件类型设置特定字段值
             if event_type == EventTypes.VIP_PAY_FAIL:
-                props["error_code"] = random.choice(["INSUFFICIENT_BALANCE", "NETWORK_ERROR", "PAYMENT_TIMEOUT", "USER_CANCEL", "SYSTEM_ERROR"])
+                props["error_code"] = DistributionUtil.biased_choice(["INSUFFICIENT_BALANCE", "NETWORK_ERROR", "PAYMENT_TIMEOUT", "USER_CANCEL", "SYSTEM_ERROR"], bias="front")
                 props["error_msg"] = "支付失败"
-                props["retry_count"] = random.randint(0, 3)
+                props["retry_count"] = DistributionUtil.skewed_int(0, 3, skew="low")
             elif event_type == EventTypes.VIP_PAY_CANCEL:
-                props["cancel_stage"] = random.choice(["before_pay", "during_pay", "after_redirect"])
+                props["cancel_stage"] = DistributionUtil.biased_choice(["before_pay", "during_pay", "after_redirect"], bias="front")
             elif event_type in [EventTypes.VIP_AUTO_RENEW_ON, EventTypes.VIP_AUTO_RENEW_OFF]:
                 props["previous_auto_renew"] = event_type == EventTypes.VIP_AUTO_RENEW_OFF
 
@@ -923,7 +1014,7 @@ class ODSGenerator:
                 "client_ts": base["client_ts"],
                 "server_ts": base["server_ts"],
                 "url_path": "/vip/buy",
-                "referer": random.choice(["https://www.bilibili.com/", "app://vip", "app://home"]),
+                "referer": DistributionUtil.biased_choice(["https://www.bilibili.com/", "app://vip", "app://home"], bias="front"),
                 "ua": base["ua"],
                 "ip": base["ip"],
                 "device_info": base["device_info"],
@@ -935,9 +1026,6 @@ class ODSGenerator:
         return count
 
 
-# ==========================================
-# 6. 主入口 - 持续运行
-# ==========================================
 class MockRoutine:
     def __init__(self):
         self.running = True
@@ -955,12 +1043,10 @@ class MockRoutine:
         }
 
     def signal_handler(self, signum, frame):
-        """处理退出信号"""
         print("\n\nReceived stop signal. Shutting down gracefully...")
         self.running = False
 
     def print_stats(self, round_num: int, round_stats: dict):
-        """打印统计信息"""
         print(f"\n[Round {round_num}] Sent this round:")
         print(f"  Users: {round_stats['users']}, Videos: {round_stats['videos']}, Comments: {round_stats['comments']}")
         print(f"  Account Events: {round_stats['account_events']}, Video Events: {round_stats['video_events']}")
@@ -969,24 +1055,20 @@ class MockRoutine:
         print(f"  Data pool: {len(self.generator.mids)} mids, {len(self.generator.bvids)} bvids, {len(self.generator.rpids)} rpids")
 
     def run(self):
-        """主运行循环"""
-        # 注册信号处理
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
         try:
-            # 连接 Kafka
             self.producer = KafkaProducer(
                 bootstrap_servers=Constant.KAFKA_BOOTSTRAP_SERVERS,
                 value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode('utf-8')
             )
             print("Connected to Kafka.")
-            print(f"Interval: {RoutineConfig.INTERVAL_SECONDS}s")
+            print(f"Interval: {RoutineConfig.INTERVAL_MIN}s ~ {RoutineConfig.INTERVAL_MAX}s (randomized)")
             print("Press Ctrl+C to stop.\n")
 
             self.generator = ODSGenerator(self.producer)
 
-            # 初始化一些基础数据
             print("Initializing base data...")
             self.generator.gen_users(50)
             self.generator.gen_videos(20)
@@ -998,42 +1080,38 @@ class MockRoutine:
                 round_num += 1
                 round_stats = {}
 
-                # 生成基础数据
                 round_stats["users"] = self.generator.gen_users(RoutineConfig.BATCH_USERS)
                 round_stats["videos"] = self.generator.gen_videos(RoutineConfig.BATCH_VIDEOS)
                 round_stats["comments"] = self.generator.gen_comments(RoutineConfig.BATCH_COMMENTS)
 
-                # 生成埋点数据
                 round_stats["account_events"] = self.generator.gen_account_events(RoutineConfig.BATCH_ACCOUNT_EVENTS)
                 round_stats["video_events"] = self.generator.gen_video_events(RoutineConfig.BATCH_VIDEO_EVENTS)
                 round_stats["social_events"] = self.generator.gen_social_events(RoutineConfig.BATCH_SOCIAL_EVENTS)
                 round_stats["comment_events"] = self.generator.gen_comment_events(RoutineConfig.BATCH_COMMENT_EVENTS)
                 round_stats["vip_events"] = self.generator.gen_vip_events(RoutineConfig.BATCH_VIP_EVENTS)
 
-                # 更新总计
                 for key in round_stats:
                     self.total_sent[key] += round_stats[key]
 
-                # 打印统计
                 self.print_stats(round_num, round_stats)
 
-                # 等待下一轮
                 if self.running:
-                    time.sleep(RoutineConfig.INTERVAL_SECONDS)
+                    # 偏向 INTERVAL_MAX，偶尔突发到 INTERVAL_MIN
+                    ratio = random.betavariate(5, 1.5)
+                    interval = RoutineConfig.INTERVAL_MIN + ratio * (RoutineConfig.INTERVAL_MAX - RoutineConfig.INTERVAL_MIN)
+                    time.sleep(interval)
 
         except Exception as e:
             print(f"\nError: {e}")
             import traceback
             traceback.print_exc()
         finally:
-            # 打印总计
             print("\n" + "=" * 50)
             print("Total messages sent:")
             for key, value in self.total_sent.items():
                 print(f"  {key}: {value}")
             print("=" * 50)
 
-            # 关闭连接
             if self.producer:
                 self.producer.close()
                 print("\nKafka connection closed.")
