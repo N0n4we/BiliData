@@ -326,7 +326,7 @@ class ODSGenerator:
 
     def _pick_mid(self, prefer_hot: bool = True) -> int:
         if not self.mids:
-            return random.randint(10000000, 99999999)
+            self._ensure_user_exists()
 
         if prefer_hot and self._hot_mids and random.random() < 0.7:
             return random.choice(self._hot_mids)
@@ -334,15 +334,78 @@ class ODSGenerator:
             idx = DistributionUtil.zipf_index(len(self.mids), s=1.2)
             return self.mids[idx]
 
+    def _ensure_user_exists(self):
+        """确保至少有一个用户存在，生成用户数据并发送到 Kafka"""
+        mid = random.randint(10000000, 99999999)
+        self.mids.append(mid)
+        user_data = {
+            "mid": mid,
+            "nick_name": MockDataUtil.generate_username(),
+            "sex": "保密",
+            "face_url": f"https://i0.hdslb.com/bfs/face/{uuid.uuid4().hex}.jpg",
+            "sign": "",
+            "level": 1,
+            "birthday": "2000-01-01",
+            "coins": 0,
+            "vip_type": 0,
+            "official_verify": {"type": -1, "desc": ""},
+            "settings": {"privacy": {"show_fav": False, "show_history": False}, "push": {"comment": True, "like": True, "at": True}, "theme": "auto"},
+            "tags": [],
+            "status": 0,
+            "created_at": int(time.time() * 1000),
+            "updated_at": int(time.time() * 1000)
+        }
+        self._send_to_kafka(Constant.TBL_USER, [user_data])
+        self._update_hot_pools()
+
     def _pick_bvid(self, prefer_hot: bool = True) -> str:
         if not self.bvids:
-            return MockDataUtil.generate_bvid()
+            self._ensure_video_exists()
 
         if prefer_hot and self._hot_bvids and random.random() < 0.75:
             return random.choice(self._hot_bvids)
         else:
             idx = DistributionUtil.zipf_index(len(self.bvids), s=1.3)
             return self.bvids[idx]
+
+    def _ensure_video_exists(self):
+        """确保至少有一个视频存在，生成视频内容数据并发送到 Kafka"""
+        if not self.mids:
+            self._ensure_user_exists()
+
+        bvid = MockDataUtil.generate_bvid()
+        mid = self._pick_mid(prefer_hot=False)
+        category = random.choice(MockDataUtil.VIDEO_CATEGORIES)
+
+        video_data = {
+            "bvid": bvid,
+            "title": f"自动生成视频_{bvid[-6:]}",
+            "cover": f"https://i0.hdslb.com/bfs/archive/{uuid.uuid4().hex}.jpg",
+            "desc_text": "视频简介...",
+            "duration": random.randint(60, 600),
+            "pubdate": int(time.time() * 1000),
+            "mid": mid,
+            "category_id": random.randint(1, 200),
+            "category_name": category,
+            "state": 0,
+            "attribute": 0,
+            "is_private": False,
+            "meta_info": {
+                "upload_ip": MockDataUtil.generate_ip(),
+                "camera": "Unknown",
+                "software": "Unknown",
+                "resolution": "1080p",
+                "fps": 30
+            },
+            "stats": {"view": 0, "danmaku": 0, "reply": 0, "favorite": 0, "coin": 0, "share": 0, "like": 0},
+            "audit_info": [{"ts": int(time.time()), "operator": "system", "status": "pass"}],
+            "created_at": int(time.time() * 1000),
+            "updated_at": int(time.time() * 1000)
+        }
+
+        self.bvids.append(bvid)
+        self._send_to_kafka(Constant.TBL_VIDEO, [video_data])
+        self._update_hot_pools()
 
     def _pick_rpid(self, prefer_hot: bool = True) -> int:
         if not self.rpids:
@@ -635,7 +698,7 @@ class ODSGenerator:
         for _ in range(count):
             event_type = random.choices([e[0] for e in events], weights=[e[1] for e in events])[0]
             mid = self._pick_mid(prefer_hot=True)
-            bvid = self._pick_bvid(prefer_hot=True) if self.bvids else MockDataUtil.generate_bvid()
+            bvid = self._pick_bvid(prefer_hot=True)
             base = self._get_base_event_data(mid)
 
             props = {"event_type": event_type}
