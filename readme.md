@@ -15,3 +15,7 @@ https://y1hmnem2vtl.feishu.cn/docx/C4Hfddk9MoCSY4xxdVTcaR2Pnsh?openbrd=1&doc_app
 #### 看板预览：
 
 ![看板预览](./kanban.jpg)
+
+#### DolphinScheduler调度作业依赖图：
+
+![调度作业依赖图](./dolphinscheduler.png)
