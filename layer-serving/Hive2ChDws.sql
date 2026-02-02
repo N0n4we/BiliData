@@ -5,8 +5,9 @@
 --
 -- 包含表：
 --   1. dws_video_stats_account_di -> dws_video_stats_account_di
---   2. dws_account_registry_source_di -> dws_account_registry_source_di
---   3. dws_vip_order_source_di -> dws_vip_order_source_di
+--   2. dws_video_stats_account_di_v2 -> dws_video_stats_account_di_v2
+--   3. dws_account_registry_source_di -> dws_account_registry_source_di
+--   4. dws_vip_order_source_di -> dws_vip_order_source_di
 -- ============================================================
 
 SET 'execution.runtime-mode' = 'batch';
@@ -67,7 +68,58 @@ CREATE TABLE clickhouse_dws_video_stats_account (
 );
 
 -- ============================================================
--- 3. 创建 ClickHouse Sink 表 - dws_account_registry_source_di
+-- 3. 创建 ClickHouse Sink 表 - dws_video_stats_account_di_v2
+-- ============================================================
+DROP TABLE IF EXISTS clickhouse_dws_video_stats_account_v2;
+CREATE TABLE clickhouse_dws_video_stats_account_v2 (
+    bvid                        STRING,
+    title                       STRING,
+    duration                    INT,
+    pubdate                     BIGINT,
+    pub_date                    STRING,
+    category_id                 INT,
+    category_name               STRING,
+    mid                         BIGINT,
+    nick_name                   STRING,
+    sex                         STRING,
+    `level`                     INT,
+    vip_type                    INT,
+    vip_type_name               STRING,
+    official_type               INT,
+    official_desc               STRING,
+    is_official                 BOOLEAN,
+    follower_cnt                INT,
+    following_cnt               INT,
+    view_count                  BIGINT,
+    view_user_count             BIGINT,
+    total_play_duration_sec     BIGINT,
+    avg_play_duration_sec       INT,
+    like_delta                  BIGINT,
+    unlike_delta                BIGINT,
+    net_like_delta              BIGINT,
+    coin_count_delta            BIGINT,
+    coin_total_delta            BIGINT,
+    favorite_delta              BIGINT,
+    unfavorite_delta            BIGINT,
+    net_favorite_delta          BIGINT,
+    share_count                 BIGINT,
+    danmaku_count               BIGINT,
+    triple_count                BIGINT,
+    dw_create_time              TIMESTAMP(3),
+    dt                          STRING
+) WITH (
+    'connector' = 'jdbc',
+    'url' = 'jdbc:mysql://clickhouse:9004/dws?useSSL=false&allowPublicKeyRetrieval=true',
+    'driver' = 'com.mysql.cj.jdbc.Driver',
+    'table-name' = 'dws_video_stats_account_di_v2',
+    'username' = 'default',
+    'password' = '',
+    'sink.buffer-flush.max-rows' = '5000',
+    'sink.buffer-flush.interval' = '15s'
+);
+
+-- ============================================================
+-- 4. 创建 ClickHouse Sink 表 - dws_account_registry_source_di
 -- ============================================================
 DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
 CREATE TABLE clickhouse_dws_account_registry_source (
@@ -98,7 +150,7 @@ CREATE TABLE clickhouse_dws_account_registry_source (
 );
 
 -- ============================================================
--- 4. 创建 ClickHouse Sink 表 - dws_vip_order_source_di
+-- 5. 创建 ClickHouse Sink 表 - dws_vip_order_source_di
 -- ============================================================
 DROP TABLE IF EXISTS clickhouse_dws_vip_order_source;
 CREATE TABLE clickhouse_dws_vip_order_source (
@@ -143,7 +195,7 @@ CREATE TABLE clickhouse_dws_vip_order_source (
 );
 
 -- ============================================================
--- 5. 同步 dws_video_stats_account_di 到 ClickHouse
+-- 6. 同步 dws_video_stats_account_di 到 ClickHouse
 -- 主键: mid, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_video_stats_account
@@ -181,7 +233,51 @@ FROM dws.dws_video_stats_account_di
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
--- 6. 同步 dws_account_registry_source_di 到 ClickHouse
+-- 7. 同步 dws_video_stats_account_di_v2 到 ClickHouse
+-- 主键: bvid, dt
+-- ============================================================
+INSERT INTO clickhouse_dws_video_stats_account_v2
+SELECT
+    COALESCE(bvid, '') AS bvid, -- 主键防空
+    title,
+    duration,
+    pubdate,
+    pub_date,
+    category_id,
+    category_name,
+    COALESCE(mid, 0) AS mid,
+    nick_name,
+    sex,
+    `level`,
+    vip_type,
+    vip_type_name,
+    official_type,
+    official_desc,
+    is_official,
+    follower_cnt,
+    following_cnt,
+    view_count,
+    view_user_count,
+    total_play_duration_sec,
+    avg_play_duration_sec,
+    like_delta,
+    unlike_delta,
+    net_like_delta,
+    coin_count_delta,
+    coin_total_delta,
+    favorite_delta,
+    unfavorite_delta,
+    net_favorite_delta,
+    share_count,
+    danmaku_count,
+    triple_count,
+    dw_create_time,
+    dt
+FROM dws.dws_video_stats_account_di_v2
+WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
+
+-- ============================================================
+-- 8. 同步 dws_account_registry_source_di 到 ClickHouse
 -- 主键: sex, level, age, birth_year, vip_type, status, official_type, theme, primary_tag, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_account_registry_source
@@ -205,7 +301,7 @@ FROM dws.dws_account_registry_source_di
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
 -- ============================================================
--- 7. 同步 dws_vip_order_source_di 到 ClickHouse
+-- 9. 同步 dws_vip_order_source_di 到 ClickHouse
 -- 主键: order_status, plan_id, pay_method, platform, channel, sex, level, official_type, dt
 -- ============================================================
 INSERT INTO clickhouse_dws_vip_order_source

@@ -63,7 +63,66 @@ ORDER BY (mid, dt)
 SETTINGS index_granularity = 8192;
 
 -- ============================================================
--- 3. dws_account_registry_source_di - 每日新注册账号来源分析表
+-- 3. dws_video_stats_account_di_v2 - UP主视频统计明细表（视频粒度）
+-- 主键：(bvid, dt)
+-- 分区：按dt日期分区
+-- ============================================================
+CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di_v2
+(
+    -- 视频维度信息
+    bvid                        String          COMMENT '视频BV号',
+    title                       String          COMMENT '视频标题',
+    duration                    Int32           COMMENT '视频时长(秒)',
+    pubdate                     Int64           COMMENT '发布时间戳(ms)',
+    pub_date                    String          COMMENT '发布日期',
+    category_id                 Int32           COMMENT '分区ID',
+    category_name               String          COMMENT '分区名称',
+
+    -- 账号维度信息
+    mid                         Int64           COMMENT '用户ID',
+    nick_name                   String          COMMENT '昵称',
+    sex                         String          COMMENT '性别：男/女/保密',
+    `level`                     Int32           COMMENT '等级(0-6)',
+    vip_type                    Int32           COMMENT 'VIP类型：0=无,1=月度,2=年度',
+    vip_type_name               String          COMMENT 'VIP类型名称',
+    official_type               Int32           COMMENT '认证类型：-1=无认证,0=个人认证,1=机构认证',
+    official_desc               String          COMMENT '认证描述',
+    is_official                 UInt8           COMMENT '是否认证用户',
+    follower_cnt                Int32           COMMENT '粉丝数',
+    following_cnt               Int32           COMMENT '关注数',
+
+    -- 视频统计指标
+    view_count                  Int64           COMMENT '观看次数',
+    view_user_count             Int64           COMMENT '观看用户数',
+    total_play_duration_sec     Int64           COMMENT '总播放时长(秒)',
+    avg_play_duration_sec       Int32           COMMENT '平均播放时长(秒)',
+
+    like_delta                  Int64           COMMENT '点赞增量',
+    unlike_delta                Int64           COMMENT '取消点赞增量',
+    net_like_delta              Int64           COMMENT '净点赞增量',
+
+    coin_count_delta            Int64           COMMENT '投币次数增量',
+    coin_total_delta            Int64           COMMENT '投币数增量',
+
+    favorite_delta              Int64           COMMENT '收藏增量',
+    unfavorite_delta            Int64           COMMENT '取消收藏增量',
+    net_favorite_delta          Int64           COMMENT '净收藏增量',
+
+    share_count                 Int64           COMMENT '分享次数',
+    danmaku_count               Int64           COMMENT '弹幕数',
+    triple_count                Int64           COMMENT '一键三连次数',
+
+    -- ETL信息
+    dw_create_time              DateTime64(3)   COMMENT '数仓创建时间',
+    dt                          String          COMMENT '日期分区'
+)
+ENGINE = ReplacingMergeTree(dw_create_time)
+PARTITION BY dt
+ORDER BY (bvid, dt)
+SETTINGS index_granularity = 8192;
+
+-- ============================================================
+-- 4. dws_account_registry_source_di - 每日新注册账号来源分析表
 -- 主键：多维度组合 + dt
 -- 分区：按dt日期分区
 -- ============================================================
@@ -96,7 +155,7 @@ ORDER BY (dt, sex, `level`, age, birth_year, vip_type, `status`, official_type, 
 SETTINGS index_granularity = 8192;
 
 -- ============================================================
--- 4. dws_vip_order_source_di - VIP订单来源分析表
+-- 5. dws_vip_order_source_di - VIP订单来源分析表
 -- 主键：多维度组合 + dt
 -- 分区：按dt日期分区
 -- ============================================================
@@ -145,7 +204,7 @@ ORDER BY (dt, order_status, plan_id, pay_method, platform, channel, sex, `level`
 SETTINGS index_granularity = 8192;
 
 -- ============================================================
--- 5. dws_account_registry_source_from_event_di - 每日新注册账号来源分析表（基于埋点事件）
+-- 6. dws_account_registry_source_from_event_di - 每日新注册账号来源分析表（基于埋点事件）
 -- 主键：多维度组合 + dt
 -- 分区：按dt日期分区
 -- 说明：从埋点事件中提取注册来源信息，维度来源于埋点自带的app_context、device_info、properties字段
