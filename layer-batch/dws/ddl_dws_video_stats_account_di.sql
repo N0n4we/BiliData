@@ -1,7 +1,3 @@
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dws;
-USE dws;
-
 CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di (
     -- ========== 账号维度信息 ==========
     mid                         BIGINT          COMMENT '用户ID',

@@ -1,7 +1,6 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
-DROP TABLE IF EXISTS kafka_event_video;
-CREATE TABLE kafka_event_video (
+CREATE TEMPORARY TABLE kafka_event_video (
     event_id            STRING,
     mid                 BIGINT,
     bvid                STRING,
@@ -25,8 +24,7 @@ CREATE TABLE kafka_event_video (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS clickhouse_dws_video_stats_account_v2;
-CREATE TABLE clickhouse_dws_video_stats_account_v2 (
+CREATE TEMPORARY TABLE clickhouse_dws_video_stats_account_v2 (
     -- 视频维度信息（实时层填null，由离线层补全）
     bvid                        STRING,
     title                       STRING,

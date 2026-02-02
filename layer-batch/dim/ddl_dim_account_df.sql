@@ -1,7 +1,3 @@
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dim;
-USE dim;
-
 CREATE TABLE IF NOT EXISTS dim.dim_account_df (
     -- ========== 用户基础信息 ==========
     mid                     BIGINT          COMMENT '用户ID',

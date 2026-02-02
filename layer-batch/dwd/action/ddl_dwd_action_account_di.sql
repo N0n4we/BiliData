@@ -1,8 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
 CREATE TABLE IF NOT EXISTS dwd.dwd_action_account_di (
     -- ========== 事件标识 ==========
     event_id            STRING      COMMENT '事件类型：social_follow/social_unfollow/social_block/social_unblock/social_whisper/social_report_user',

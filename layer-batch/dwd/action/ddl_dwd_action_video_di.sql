@@ -1,9 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
--- 创建视频行为事件明细表（每日增量）
 CREATE TABLE IF NOT EXISTS dwd.dwd_action_video_di (
     -- ========== 数据质量校验 ==========
     is_valid            BOOLEAN     COMMENT '数据是否有效',

@@ -1,8 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
 CREATE TABLE IF NOT EXISTS dwd.dwd_order_vip_di (
     -- 主键
     order_no                STRING      COMMENT '订单号',

@@ -1,7 +1,3 @@
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dws;
-USE dws;
-
 CREATE TABLE IF NOT EXISTS dws.dws_vip_order_source_di (
     -- ========== 订单维度 ==========
     order_status            STRING          COMMENT '订单状态',

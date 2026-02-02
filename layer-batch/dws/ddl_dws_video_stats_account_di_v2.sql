@@ -1,7 +1,3 @@
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dws;
-USE dws;
-
 CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di_v2 (
     -- ========== 视频维度信息 ==========
     bvid                        STRING          COMMENT '视频BV号',

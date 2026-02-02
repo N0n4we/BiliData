@@ -1,7 +1,6 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
-DROP TABLE IF EXISTS kafka_event_vip;
-CREATE TABLE kafka_event_vip (
+CREATE TEMPORARY TABLE kafka_event_vip (
     event_id            STRING,
     mid                 BIGINT,
     server_ts           BIGINT,
@@ -55,8 +54,7 @@ CREATE TABLE kafka_event_vip (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS clickhouse_dws_vip_order_source;
-CREATE TABLE clickhouse_dws_vip_order_source (
+CREATE TEMPORARY TABLE clickhouse_dws_vip_order_source (
     -- 订单维度
     order_status                STRING,
     plan_id                     STRING,

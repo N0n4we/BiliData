@@ -1,7 +1,6 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
-DROP TABLE IF EXISTS kafka_event_account;
-CREATE TABLE kafka_event_account (
+CREATE TEMPORARY TABLE kafka_event_account (
     event_id            STRING,
     mid                 BIGINT,
     server_ts           BIGINT,
@@ -38,8 +37,7 @@ CREATE TABLE kafka_event_account (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
-CREATE TABLE clickhouse_dws_account_registry_source (
+CREATE TEMPORARY TABLE clickhouse_dws_account_registry_source (
     -- 来源维度（实时层填null，由离线层补全）
     sex                     STRING,
     `level`                 INT,

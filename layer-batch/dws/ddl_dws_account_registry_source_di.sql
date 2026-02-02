@@ -1,7 +1,3 @@
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dws;
-USE dws;
-
 CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_di (
     -- ========== 来源维度 ==========
     sex                     STRING          COMMENT '性别：男/女/保密',

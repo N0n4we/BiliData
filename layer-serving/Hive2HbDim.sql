@@ -1,14 +1,5 @@
--- ============================================================
--- Hive2HbaseDim - 批处理层将Hive dim表同步到HBase
--- 功能：将Hive中dt=${bizdate}的所有dim_*表upsert到HBase
--- 条件：仅同步updated_at日期 <= bizdate的记录
--- ============================================================
-
 SET 'execution.runtime-mode' = 'batch';
 
--- ============================================================
--- 1. 创建 Hive Catalog
--- ============================================================
 CREATE CATALOG hive_prod WITH (
     'type' = 'hive',
     'hive-conf-dir' = '/opt/hive/conf'
@@ -16,12 +7,7 @@ CREATE CATALOG hive_prod WITH (
 
 USE CATALOG hive_prod;
 
--- ============================================================
--- 2. 创建 HBase Sink 表 - dim_account
--- rowkey: reverse(mid)
--- ============================================================
-DROP TABLE IF EXISTS hbase_dim_account;
-CREATE TABLE hbase_dim_account (
+CREATE TEMPORARY TABLE hbase_dim_account (
     rowkey STRING,
     basic ROW<
         mid STRING,
@@ -89,13 +75,7 @@ CREATE TABLE hbase_dim_account (
     'sink.buffer-flush.interval' = '5s'
 );
 
--- ============================================================
--- 3. 创建 HBase Sink 表 - dim_video
--- rowkey: reverse(bvid)
--- 列族: basic, content, stats, meta
--- ============================================================
-DROP TABLE IF EXISTS hbase_dim_video;
-CREATE TABLE hbase_dim_video (
+CREATE TEMPORARY TABLE hbase_dim_video (
     rowkey STRING,
     basic ROW<
         bvid STRING,
@@ -146,13 +126,7 @@ CREATE TABLE hbase_dim_video (
     'sink.buffer-flush.interval' = '5s'
 );
 
--- ============================================================
--- 4. 创建 HBase Sink 表 - dim_comment
--- rowkey: reverse(rpid)
--- 列族: info, content, stats, meta
--- ============================================================
-DROP TABLE IF EXISTS hbase_dim_comment;
-CREATE TABLE hbase_dim_comment (
+CREATE TEMPORARY TABLE hbase_dim_comment (
     rowkey STRING,
     info ROW<
         rpid STRING,
@@ -186,11 +160,6 @@ CREATE TABLE hbase_dim_comment (
     'sink.buffer-flush.interval' = '5s'
 );
 
--- ============================================================
--- 5. 同步 dim_account_df 到 HBase
--- 条件：dt = ${bizdate} AND DATE(updated_at) <= ${bizdate}
--- 修改：使用 CAST(array AS STRING) 替代 ARRAY_JOIN/TRANSFORM
--- ============================================================
 INSERT INTO hbase_dim_account
 SELECT
     REVERSE(CAST(mid AS STRING)) AS rowkey,
@@ -262,10 +231,6 @@ FROM dim.dim_account_df
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd')
   AND DATE_FORMAT(updated_at, 'yyyy-MM-dd') <= DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
--- ============================================================
--- 6. 同步 dim_video_df 到 HBase
--- 条件：dt = ${bizdate} AND updated_date <= ${bizdate}
--- ============================================================
 INSERT INTO hbase_dim_video
 SELECT
     REVERSE(bvid) AS rowkey,
@@ -317,10 +282,6 @@ FROM dim.dim_video_df
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd')
   AND updated_date <= DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
--- ============================================================
--- 7. 同步 dim_comment_df 到 HBase
--- 条件：dt = ${bizdate} AND updated_date <= ${bizdate}
--- ============================================================
 INSERT INTO hbase_dim_comment
 SELECT
     REVERSE(CAST(rpid AS STRING)) AS rowkey,

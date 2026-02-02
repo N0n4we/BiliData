@@ -1,9 +1,3 @@
--- 切换到 dim 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dim;
-USE dim;
-
--- 创建视频维度表（每日全量快照）
 CREATE TABLE IF NOT EXISTS dim_video_df (
     bvid                STRING      COMMENT '视频BV号',
     title               STRING      COMMENT '视频标题',

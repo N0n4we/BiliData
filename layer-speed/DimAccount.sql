@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS kafka_user_profile;
-CREATE TABLE kafka_user_profile (
+CREATE TEMPORARY TABLE kafka_user_profile (
     mid                 BIGINT,
     nick_name           STRING,
     sex                 STRING,
@@ -31,8 +30,7 @@ CREATE TABLE kafka_user_profile (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS kafka_event_social;
-CREATE TABLE kafka_event_social (
+CREATE TEMPORARY TABLE kafka_event_social (
     event_id            STRING,
     mid                 BIGINT,
     target_mid          BIGINT,
@@ -55,8 +53,7 @@ CREATE TABLE kafka_event_social (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS hbase_dim_account;
-CREATE TABLE hbase_dim_account (
+CREATE TEMPORARY TABLE hbase_dim_account (
     rowkey STRING,
     basic ROW<
         mid STRING,

@@ -1,9 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
--- 创建评论度量值每日汇总表
 CREATE TABLE IF NOT EXISTS dwd.dwd_stats_comment_di (
     rpid                BIGINT      COMMENT '评论ID',
     oid                 STRING      COMMENT '视频BV号',

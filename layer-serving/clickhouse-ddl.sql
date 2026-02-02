@@ -1,18 +1,5 @@
--- ============================================================
--- ClickHouse DDL - layer-serving 服务层表定义
--- 用于存储从Hive同步过来的dws汇总数据
--- ============================================================
-
--- ============================================================
--- 1. 创建数据库
--- ============================================================
 CREATE DATABASE IF NOT EXISTS dws;
 
--- ============================================================
--- 2. dws_video_stats_account_di - UP主视频统计汇总表
--- 主键：(mid, dt)
--- 分区：按dt日期分区
--- ============================================================
 CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di
 (
     -- 账号维度信息
@@ -62,11 +49,6 @@ PARTITION BY dt
 ORDER BY (mid, dt)
 SETTINGS index_granularity = 8192;
 
--- ============================================================
--- 3. dws_video_stats_account_di_v2 - UP主视频统计明细表（视频粒度）
--- 主键：(bvid, dt)
--- 分区：按dt日期分区
--- ============================================================
 CREATE TABLE IF NOT EXISTS dws.dws_video_stats_account_di_v2
 (
     -- 视频维度信息
@@ -121,11 +103,6 @@ PARTITION BY dt
 ORDER BY (bvid, dt)
 SETTINGS index_granularity = 8192;
 
--- ============================================================
--- 4. dws_account_registry_source_di - 每日新注册账号来源分析表
--- 主键：多维度组合 + dt
--- 分区：按dt日期分区
--- ============================================================
 CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_di
 (
     -- 来源维度
@@ -154,11 +131,6 @@ PARTITION BY dt
 ORDER BY (dt, sex, `level`, age, birth_year, vip_type, `status`, official_type, theme, primary_tag)
 SETTINGS index_granularity = 8192;
 
--- ============================================================
--- 5. dws_vip_order_source_di - VIP订单来源分析表
--- 主键：多维度组合 + dt
--- 分区：按dt日期分区
--- ============================================================
 CREATE TABLE IF NOT EXISTS dws.dws_vip_order_source_di
 (
     -- 订单维度
@@ -203,12 +175,6 @@ PARTITION BY dt
 ORDER BY (dt, order_status, plan_id, pay_method, platform, channel, sex, `level`, official_type)
 SETTINGS index_granularity = 8192;
 
--- ============================================================
--- 6. dws_account_registry_source_from_event_di - 每日新注册账号来源分析表（基于埋点事件）
--- 主键：多维度组合 + dt
--- 分区：按dt日期分区
--- 说明：从埋点事件中提取注册来源信息，维度来源于埋点自带的app_context、device_info、properties字段
--- ============================================================
 CREATE TABLE IF NOT EXISTS dws.dws_account_registry_source_from_event_di
 (
     -- 来源维度（从埋点提取）

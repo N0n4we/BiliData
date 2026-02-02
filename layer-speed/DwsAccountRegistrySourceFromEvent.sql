@@ -1,7 +1,6 @@
 SET 'table.local-time-zone' = 'Asia/Shanghai';
 
-DROP TABLE IF EXISTS kafka_event_account;
-CREATE TABLE kafka_event_account (
+CREATE TEMPORARY TABLE kafka_event_account (
     event_id            STRING,
     trace_id            STRING,
     session_id          STRING,
@@ -62,8 +61,7 @@ CREATE TABLE kafka_event_account (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS clickhouse_dws_account_registry_source_from_event;
-CREATE TABLE clickhouse_dws_account_registry_source_from_event (
+CREATE TEMPORARY TABLE clickhouse_dws_account_registry_source_from_event (
     -- 来源维度（从埋点提取）
     platform                    STRING,
     channel                     STRING,

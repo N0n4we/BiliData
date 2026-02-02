@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS kafka_video_content;
-CREATE TABLE kafka_video_content (
+CREATE TEMPORARY TABLE kafka_video_content (
     bvid                STRING,
     title               STRING,
     cover               STRING,
@@ -43,8 +42,7 @@ CREATE TABLE kafka_video_content (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS kafka_event_video;
-CREATE TABLE kafka_event_video (
+CREATE TEMPORARY TABLE kafka_event_video (
     event_id            STRING,
     mid                 BIGINT,
     bvid                STRING,
@@ -65,8 +63,7 @@ CREATE TABLE kafka_event_video (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS kafka_event_comment_for_video;
-CREATE TABLE kafka_event_comment_for_video (
+CREATE TEMPORARY TABLE kafka_event_comment_for_video (
     event_id            STRING,
     mid                 BIGINT,
     oid                 STRING,
@@ -91,8 +88,7 @@ CREATE TABLE kafka_event_comment_for_video (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS hbase_dim_video;
-CREATE TABLE hbase_dim_video (
+CREATE TEMPORARY TABLE hbase_dim_video (
     rowkey STRING,
     basic ROW<
         bvid STRING,
@@ -134,8 +130,7 @@ CREATE TABLE hbase_dim_video (
     'sink.buffer-flush.interval' = '5s'
 );
 
-DROP TABLE IF EXISTS hbase_dim_video_incr;
-CREATE TABLE hbase_dim_video_incr (
+CREATE TEMPORARY TABLE hbase_dim_video_incr (
     rowkey STRING,
     stats ROW<
         view_count STRING,
@@ -154,8 +149,7 @@ CREATE TABLE hbase_dim_video_incr (
     'sink.buffer-flush.interval' = '5s'
 );
 
-DROP TABLE IF EXISTS hbase_dim_video_reply_incr;
-CREATE TABLE hbase_dim_video_reply_incr (
+CREATE TEMPORARY TABLE hbase_dim_video_reply_incr (
     rowkey STRING,
     stats ROW<
         reply_count STRING

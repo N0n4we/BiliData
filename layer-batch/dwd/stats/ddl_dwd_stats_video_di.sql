@@ -1,9 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
--- 创建视频度量值每日汇总表
 CREATE TABLE IF NOT EXISTS dwd.dwd_stats_video_di (
     bvid                    STRING      COMMENT '视频BV号',
 

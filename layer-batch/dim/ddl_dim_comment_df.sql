@@ -1,9 +1,3 @@
--- 切换到 dim 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dim;
-USE dim;
-
--- 创建评论维度表（每日全量快照）
 CREATE TABLE IF NOT EXISTS dim_comment_df (
     rpid            BIGINT      COMMENT '评论ID',
     oid             STRING      COMMENT '视频BV号',

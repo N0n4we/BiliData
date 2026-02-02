@@ -1,9 +1,3 @@
--- 切换到 dwd 库
-USE CATALOG hive_prod;
-CREATE DATABASE IF NOT EXISTS dwd;
-USE dwd;
-
--- 创建评论行为事件明细表（每日增量）
 CREATE TABLE IF NOT EXISTS dwd.dwd_action_comment_di (
     -- ========== 事件标识 ==========
     event_id            STRING      COMMENT '事件类型标识',

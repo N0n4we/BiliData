@@ -1,20 +1,5 @@
--- ============================================================
--- Hive2ChDws - 批处理层将Hive dws表同步到ClickHouse
--- 功能：将Hive中dt=${bizdate}的所有dws_*表overwrite到ClickHouse
--- 模式：按bizdate分区覆盖写入
---
--- 包含表：
---   1. dws_video_stats_account_di -> dws_video_stats_account_di
---   2. dws_video_stats_account_di_v2 -> dws_video_stats_account_di_v2
---   3. dws_account_registry_source_di -> dws_account_registry_source_di
---   4. dws_vip_order_source_di -> dws_vip_order_source_di
--- ============================================================
-
 SET 'execution.runtime-mode' = 'batch';
 
--- ============================================================
--- 1. 创建 Hive Catalog
--- ============================================================
 CREATE CATALOG hive_prod WITH (
     'type' = 'hive',
     'hive-conf-dir' = '/opt/hive/conf'
@@ -22,11 +7,7 @@ CREATE CATALOG hive_prod WITH (
 
 USE CATALOG hive_prod;
 
--- ============================================================
--- 2. 创建 ClickHouse Sink 表 - dws_video_stats_account_di
--- ============================================================
-DROP TABLE IF EXISTS clickhouse_dws_video_stats_account;
-CREATE TABLE clickhouse_dws_video_stats_account (
+CREATE TEMPORARY TABLE clickhouse_dws_video_stats_account (
     mid                         BIGINT,
     nick_name                   STRING,
     sex                         STRING,
@@ -67,11 +48,7 @@ CREATE TABLE clickhouse_dws_video_stats_account (
     'sink.buffer-flush.interval' = '15s'
 );
 
--- ============================================================
--- 3. 创建 ClickHouse Sink 表 - dws_video_stats_account_di_v2
--- ============================================================
-DROP TABLE IF EXISTS clickhouse_dws_video_stats_account_v2;
-CREATE TABLE clickhouse_dws_video_stats_account_v2 (
+CREATE TEMPORARY TABLE clickhouse_dws_video_stats_account_v2 (
     bvid                        STRING,
     title                       STRING,
     duration                    INT,
@@ -118,11 +95,7 @@ CREATE TABLE clickhouse_dws_video_stats_account_v2 (
     'sink.buffer-flush.interval' = '15s'
 );
 
--- ============================================================
--- 4. 创建 ClickHouse Sink 表 - dws_account_registry_source_di
--- ============================================================
-DROP TABLE IF EXISTS clickhouse_dws_account_registry_source;
-CREATE TABLE clickhouse_dws_account_registry_source (
+CREATE TEMPORARY TABLE clickhouse_dws_account_registry_source (
     sex                     STRING,
     `level`                 INT,
     age                     INT,
@@ -149,11 +122,7 @@ CREATE TABLE clickhouse_dws_account_registry_source (
     'sink.buffer-flush.interval' = '15s'
 );
 
--- ============================================================
--- 5. 创建 ClickHouse Sink 表 - dws_vip_order_source_di
--- ============================================================
-DROP TABLE IF EXISTS clickhouse_dws_vip_order_source;
-CREATE TABLE clickhouse_dws_vip_order_source (
+CREATE TEMPORARY TABLE clickhouse_dws_vip_order_source (
     order_status            STRING,
     plan_id                 STRING,
     plan_name               STRING,
@@ -194,10 +163,6 @@ CREATE TABLE clickhouse_dws_vip_order_source (
     'sink.buffer-flush.interval' = '15s'
 );
 
--- ============================================================
--- 6. 同步 dws_video_stats_account_di 到 ClickHouse
--- 主键: mid, dt
--- ============================================================
 INSERT INTO clickhouse_dws_video_stats_account
 SELECT
     COALESCE(mid, 0) AS mid, -- 主键防空
@@ -232,10 +197,6 @@ SELECT
 FROM dws.dws_video_stats_account_di
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
--- ============================================================
--- 7. 同步 dws_video_stats_account_di_v2 到 ClickHouse
--- 主键: bvid, dt
--- ============================================================
 INSERT INTO clickhouse_dws_video_stats_account_v2
 SELECT
     COALESCE(bvid, '') AS bvid, -- 主键防空
@@ -276,14 +237,10 @@ SELECT
 FROM dws.dws_video_stats_account_di_v2
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
--- ============================================================
--- 8. 同步 dws_account_registry_source_di 到 ClickHouse
--- 主键: sex, level, age, birth_year, vip_type, status, official_type, theme, primary_tag, dt
--- ============================================================
 INSERT INTO clickhouse_dws_account_registry_source
 SELECT
-    COALESCE(sex, 'unknown') AS sex, -- 主键防空，String默认为unknown或空串
-    COALESCE(`level`, -1) AS `level`, -- 主键防空，Int默认为-1或0
+    COALESCE(sex, 'unknown') AS sex, -- 主键防空
+    COALESCE(`level`, -1) AS `level`, -- 主键防空
     COALESCE(age, -1) AS age,        -- 主键防空
     COALESCE(birth_year, 0) AS birth_year, -- 主键防空
     COALESCE(vip_type, 0) AS vip_type,     -- 主键防空
@@ -293,21 +250,17 @@ SELECT
     COALESCE(official_type, -1) AS official_type, -- 主键防空
     is_official,
     COALESCE(theme, '') AS theme,          -- 主键防空
-    COALESCE(primary_tag, '') AS primary_tag, -- 主键防空 (之前的报错点)
+    COALESCE(primary_tag, '') AS primary_tag, -- 主键防空
     new_account_cnt,
     dw_create_time,
     dt
 FROM dws.dws_account_registry_source_di
 WHERE dt = DATE_FORMAT(CAST(CURRENT_DATE - INTERVAL '1' DAY AS TIMESTAMP), 'yyyy-MM-dd');
 
--- ============================================================
--- 9. 同步 dws_vip_order_source_di 到 ClickHouse
--- 主键: order_status, plan_id, pay_method, platform, channel, sex, level, official_type, dt
--- ============================================================
 INSERT INTO clickhouse_dws_vip_order_source
 SELECT
     COALESCE(order_status, '') AS order_status, -- 主键防空
-    COALESCE(plan_id, '') AS plan_id,           -- 主键防空 (本次的报错点)
+    COALESCE(plan_id, '') AS plan_id,           -- 主键防空
     plan_name,
     plan_duration_days,
     COALESCE(pay_method, '') AS pay_method,     -- 主键防空
@@ -319,8 +272,8 @@ SELECT
     error_code,
     cancel_stage,
     COALESCE(sex, 'unknown') AS sex,            -- 主键防空
-    age, -- age 不在表3的主键中，可以不处理，但为了稳健也可处理
-    birth_year, -- 同上
+    age,
+    birth_year,
     COALESCE(`level`, -1) AS `level`,           -- 主键防空
     COALESCE(official_type, -1) AS official_type, -- 主键防空
     is_official,

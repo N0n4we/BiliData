@@ -1,5 +1,4 @@
-DROP TABLE IF EXISTS kafka_comment;
-CREATE TABLE kafka_comment (
+CREATE TEMPORARY TABLE kafka_comment (
     rpid                BIGINT,
     oid                 STRING,
     otype               INT,
@@ -25,8 +24,7 @@ CREATE TABLE kafka_comment (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS kafka_event_comment;
-CREATE TABLE kafka_event_comment (
+CREATE TEMPORARY TABLE kafka_event_comment (
     event_id            STRING,
     mid                 BIGINT,
     oid                 STRING,
@@ -51,8 +49,7 @@ CREATE TABLE kafka_event_comment (
     'json.ignore-parse-errors' = 'true'
 );
 
-DROP TABLE IF EXISTS hbase_dim_comment;
-CREATE TABLE hbase_dim_comment (
+CREATE TEMPORARY TABLE hbase_dim_comment (
     rowkey STRING,
     info ROW<
         rpid STRING,
@@ -81,8 +78,7 @@ CREATE TABLE hbase_dim_comment (
     'sink.buffer-flush.interval' = '5s'
 );
 
-DROP TABLE IF EXISTS hbase_dim_comment_incr;
-CREATE TABLE hbase_dim_comment_incr (
+CREATE TEMPORARY TABLE hbase_dim_comment_incr (
     rowkey STRING,
     stats ROW<
         like_count STRING,
